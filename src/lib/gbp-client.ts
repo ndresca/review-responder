@@ -40,6 +40,7 @@ type OAuthErrorBody = {
 
 function mapReview(r: GbpReview): Review {
   return {
+    google_review_id: r.reviewId,
     reviewer_name: r.reviewer.displayName,
     rating: STAR_RATING[r.starRating] ?? 0,
     text: r.comment ?? '',

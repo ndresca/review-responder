@@ -17,6 +17,7 @@ export type BrandVoice = {
 }
 
 export type Review = {
+  google_review_id: string      // GBP reviewId — needed to call postReply
   reviewer_name: string
   rating: number                // 1–5
   text: string
