@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { encrypt } from '@/lib/crypto'
@@ -105,7 +105,7 @@ async function listLocations(
 
 // Upserts a location row and returns its internal UUID.
 async function upsertLocation(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<any>,
   googleLocationId: string,
   name: string,
   ownerId: string,
@@ -126,7 +126,7 @@ async function upsertLocation(
 // Creates a brand_voice row only if one does not exist yet for this location.
 // brand_voices has no unique constraint on location_id, so we check first.
 async function ensureBrandVoice(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<any>,
   locationId: string,
 ): Promise<void> {
   const { data: existing } = await supabase
@@ -153,7 +153,7 @@ async function ensureBrandVoice(
 
 // Upserts (or replaces) the encrypted OAuth tokens for a location.
 async function upsertOAuthTokens(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<any>,
   locationId: string,
   accessToken: string,
   refreshToken: string,
