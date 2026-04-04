@@ -16,7 +16,10 @@ npm run test:watch # Vitest watch mode
 ```
 src/
 ├── app/
-│   ├── api/cron/route.ts      # Vercel cron handler — GET /api/cron
+│   ├── api/
+│   │   ├── auth/google/route.ts           # GET — initiates Google OAuth, sets state cookie
+│   │   ├── auth/google/callback/route.ts  # GET — exchanges code, creates locations + brand_voices
+│   │   └── cron/route.ts                  # GET /api/cron — Vercel cron handler
 │   ├── layout.tsx
 │   └── page.tsx
 ├── lib/
@@ -37,7 +40,7 @@ vercel.json                    # Cron schedule: /api/cron every 15 minutes
 
 ## Environment variables
 
-See `.env.example`. Required for cron jobs: `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `OAUTH_ENCRYPTION_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `CRON_SECRET`.
+See `.env.example`. Required for cron jobs: `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `OAUTH_ENCRYPTION_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `CRON_SECRET`. OAuth flow also needs `GOOGLE_REDIRECT_URI`.
 
 ## Skill routing
 
