@@ -2,6 +2,43 @@
 
 AI-powered review response tool for restaurants. Google-first MVP.
 
+## Commands
+
+```bash
+npm run dev        # Next.js dev server
+npm run build      # production build
+npm test           # Vitest unit tests (run once)
+npm run test:watch # Vitest watch mode
+```
+
+## Project structure
+
+```
+src/
+├── app/
+│   ├── api/cron/route.ts      # Vercel cron handler — GET /api/cron
+│   ├── layout.tsx
+│   └── page.tsx
+├── lib/
+│   ├── crypto.ts              # AES-256-GCM encrypt/decrypt (OAUTH_ENCRYPTION_KEY)
+│   ├── crypto.test.ts         # 7 unit tests for crypto
+│   ├── gbp-client.ts          # Google Business Profile API wrapper
+│   └── types.ts               # Shared types: BrandVoice, Review, CalibrationExample
+├── prompts/
+│   ├── calibration.ts         # Prompt builder for onboarding calibration
+│   ├── generate-response.ts   # Prompt builder for review response generation
+│   └── quality-check.ts       # Prompt builder + QualityCheckResult type
+└── services/
+    └── auto-post.ts           # Core auto-post loop — processLocation()
+supabase/
+└── schema.sql                 # Postgres schema with RLS (run via supabase db push)
+vercel.json                    # Cron schedule: /api/cron every 15 minutes
+```
+
+## Environment variables
+
+See `.env.example`. Required for cron jobs: `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `OAUTH_ENCRYPTION_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `CRON_SECRET`.
+
 ## Skill routing
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill
