@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { processLocation } from '@/services/auto-post'
+import { sendDigest } from '@/services/digest'
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -57,6 +58,10 @@ export async function GET(request: Request): Promise<NextResponse> {
       const delay = (index / total) * windowMs
       await new Promise<void>(resolve => setTimeout(resolve, delay))
       await processLocation(location.id)
+      // Digest checks its own schedule — no-ops if today isn't the right day/time
+      await sendDigest(location.id).catch(err => {
+        console.error(`sendDigest failed for ${location.id}:`, err)
+      })
     }),
   )
 

@@ -4,6 +4,7 @@ import { encrypt, decrypt } from '@/lib/crypto'
 import { fetchReviews, postReply, refreshOAuthToken } from '@/lib/gbp-client'
 import { buildGeneratePrompt } from '@/prompts/generate-response'
 import { buildQualityCheckPrompt, type QualityCheckResult } from '@/prompts/quality-check'
+import { sendFailureAlert } from '@/services/digest'
 import type { BrandVoice, CalibrationExample, Review } from '@/lib/types'
 
 // ─── Clients ────────────────────────────────────────────────────────────────
@@ -298,8 +299,10 @@ async function processOneReview(
     const reason = err instanceof Error ? err.message : String(err)
     await storeResponse(locationId, review.google_review_id, draft, 'failed', reason, 3)
 
-    // TODO: send failure email via Resend
-    // await sendFailureEmail({ locationId, reviewId: review.google_review_id, draftText: draft, reason })
+    // Fire-and-forget — alert failure should never block the cron loop
+    sendFailureAlert(locationId, review.google_review_id, draft).catch(alertErr => {
+      console.error(`sendFailureAlert failed for ${review.google_review_id}:`, alertErr)
+    })
 
     return null
   }
