@@ -122,7 +122,7 @@ async function resolveAccessToken(
     const refreshed = await refreshOAuthToken(refreshToken)
 
     const { ciphertext, iv } = encrypt(refreshed.accessToken)
-    await supabase
+    const { error: updateErr } = await supabase
       .from('oauth_tokens')
       .update({
         access_token_encrypted: ciphertext,
@@ -130,6 +130,10 @@ async function resolveAccessToken(
         expires_at: refreshed.expiresAt.toISOString(),
       })
       .eq('location_id', locationId)
+
+    if (updateErr) {
+      throw new Error(`resolveAccessToken: token refresh DB update failed for ${locationId}: ${updateErr.message}`)
+    }
 
     return refreshed.accessToken
   }
@@ -374,13 +378,18 @@ export async function PATCH(request: Request): Promise<NextResponse> {
   const calibrationComplete = acceptedCount >= 3
 
   // Update brand_voices regardless — keeps the count in sync for the Go Live check
-  await supabase
+  const { error: bvCountErr } = await supabase
     .from('brand_voices')
     .update({ calibration_examples_accepted: acceptedCount })
     .eq('location_id', locId)
 
+  if (bvCountErr) {
+    // Count is recoverable on next PATCH — don't block Go Live over a transient counter update
+    console.warn('update brand_voices calibration_examples_accepted failed:', bvCountErr)
+  }
+
   if (calibrationComplete) {
-    await Promise.all([
+    const [sessionResult, brandVoiceResult] = await Promise.all([
       supabase
         .from('calibration_sessions')
         .update({ status: 'complete', completed_at: new Date().toISOString() })
@@ -390,6 +399,10 @@ export async function PATCH(request: Request): Promise<NextResponse> {
         .update({ calibrated_at: new Date().toISOString(), auto_post_enabled: false })
         .eq('location_id', locId),
     ])
+    if (sessionResult.error || brandVoiceResult.error) {
+      console.error('calibration completion writes failed:', sessionResult.error, brandVoiceResult.error)
+      return NextResponse.json({ error: 'Calibration complete but failed to save state — retry' }, { status: 500 })
+    }
   }
 
   return NextResponse.json({ calibrationComplete, acceptedCount })

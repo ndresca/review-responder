@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { processLocation } from '@/services/auto-post'
@@ -10,8 +11,13 @@ function isAuthorized(request: Request): boolean {
   if (!secret) throw new Error('CRON_SECRET is not set')
 
   // Vercel forwards the secret as the Authorization header: "Bearer <secret>"
-  const authHeader = request.headers.get('authorization')
-  return authHeader === `Bearer ${secret}`
+  const authHeader = request.headers.get('authorization') ?? ''
+  const expected = `Bearer ${secret}`
+
+  // Buffers must be the same length for timingSafeEqual — unequal lengths
+  // are rejected immediately, which is safe since length is not secret.
+  if (authHeader.length !== expected.length) return false
+  return timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
 }
 
 // ─── DB ──────────────────────────────────────────────────────────────────────
@@ -20,7 +26,7 @@ type LocationRow = { id: string }
 
 async function getAutoPostLocations(): Promise<LocationRow[]> {
   const url = process.env.SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required')
 
   const supabase = createClient(url, key)

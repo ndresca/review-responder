@@ -252,7 +252,8 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     accessToken = tokenData.access_token
     refreshToken = tokenData.refresh_token
-    expiresAt = new Date(Date.now() + tokenData.expires_in * 1000)
+    if (tokenData.expires_in == null) console.warn('Google token response missing expires_in; defaulting to 3600s')
+    expiresAt = new Date(Date.now() + (tokenData.expires_in ?? 3600) * 1000)
   } catch (err) {
     console.error('token exchange error:', err)
     return redirectError('token_exchange')

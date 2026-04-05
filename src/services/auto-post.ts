@@ -9,23 +9,29 @@ import type { BrandVoice, CalibrationExample, Review } from '@/lib/types'
 
 // ─── Clients ────────────────────────────────────────────────────────────────
 
-function buildSupabase() {
-  const url = process.env.SUPABASE_URL
-  // Cron jobs bypass RLS — service role key required. Falls back to anon in dev.
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY
-  if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required')
-  return createClient(url, key)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _supabase: ReturnType<typeof createClient<any>> | undefined
+let _openai: OpenAI | undefined
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getSupabase(): ReturnType<typeof createClient<any>> {
+  if (!_supabase) {
+    const url = process.env.SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required')
+    _supabase = createClient(url, key)
+  }
+  return _supabase
 }
 
-function buildOpenAI() {
-  const key = process.env.OPENAI_API_KEY
-  if (!key) throw new Error('OPENAI_API_KEY is not set')
-  return new OpenAI({ apiKey: key })
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    const key = process.env.OPENAI_API_KEY
+    if (!key) throw new Error('OPENAI_API_KEY is not set')
+    _openai = new OpenAI({ apiKey: key })
+  }
+  return _openai
 }
-
-// Module-level singletons — safe in Next.js serverless (initialized per cold start)
-const supabase = buildSupabase()
-const openai = buildOpenAI()
 
 // ─── DB row shapes ───────────────────────────────────────────────────────────
 
@@ -52,7 +58,7 @@ type CalibrationExampleRow = {
 // ─── DB helpers ──────────────────────────────────────────────────────────────
 
 async function getOAuthTokens(locationId: string): Promise<OAuthTokenRow> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('oauth_tokens')
     .select('access_token_encrypted, access_token_iv, refresh_token_encrypted, refresh_token_iv, expires_at')
     .eq('location_id', locationId)
@@ -63,7 +69,7 @@ async function getOAuthTokens(locationId: string): Promise<OAuthTokenRow> {
 }
 
 async function getBrandVoice(locationId: string): Promise<BrandVoiceRow> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('brand_voices')
     .select('personality, avoid, signature_phrases, language, owner_description, auto_post_enabled')
     .eq('location_id', locationId)
@@ -74,7 +80,7 @@ async function getBrandVoice(locationId: string): Promise<BrandVoiceRow> {
 }
 
 async function getCalibrationExamples(locationId: string): Promise<CalibrationExample[]> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('calibration_examples')
     .select('scenario_type, review_sample, ai_response, decision, edited_text')
     .eq('location_id', locationId)
@@ -92,7 +98,7 @@ async function getCalibrationExamples(locationId: string): Promise<CalibrationEx
 
 // Returns the text of the most recently posted response for duplicate detection.
 async function getLastPostedText(locationId: string): Promise<string | null> {
-  const { data } = await supabase
+  const { data } = await getSupabase()
     .from('responses_posted')
     .select('text')
     .eq('location_id', locationId)
@@ -112,7 +118,7 @@ async function storeResponse(
   failureReason: string | null,
   attempts: number,
 ): Promise<void> {
-  const { error } = await supabase.from('responses_posted').insert({
+  const { error } = await getSupabase().from('responses_posted').insert({
     location_id: locationId,
     review_id: googleReviewId,
     text,
@@ -138,7 +144,7 @@ async function generate(
 ): Promise<string> {
   const prompt = buildGeneratePrompt(brandVoice, examples, review)
 
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAI().chat.completions.create({
     model: 'gpt-4o',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.7,
@@ -187,7 +193,7 @@ async function checkWithLlm(
 
   let raw: string
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: 'gpt-4o',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
@@ -255,7 +261,8 @@ async function postWithRetry(
 
 // Returns the posted text on success, or null if the review was skipped/blocked/failed.
 async function processOneReview(
-  locationId: string,
+  locationId: string,       // internal UUID — used for DB writes
+  googleLocationId: string, // GBP resource path — used for API calls
   review: Review,
   brandVoice: BrandVoice,
   examples: CalibrationExample[],
@@ -294,7 +301,7 @@ async function processOneReview(
 
   // Post with retry
   try {
-    await postWithRetry(locationId, review.google_review_id, draft, accessToken)
+    await postWithRetry(googleLocationId, review.google_review_id, draft, accessToken)
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err)
     await storeResponse(locationId, review.google_review_id, draft, 'failed', reason, 3)
@@ -335,7 +342,7 @@ export async function processLocation(locationId: string): Promise<void> {
     accessToken = refreshed.accessToken
 
     const { ciphertext, iv } = encrypt(refreshed.accessToken)
-    await supabase
+    const { error: updateErr } = await getSupabase()
       .from('oauth_tokens')
       .update({
         access_token_encrypted: ciphertext,
@@ -343,28 +350,44 @@ export async function processLocation(locationId: string): Promise<void> {
         expires_at: refreshed.expiresAt.toISOString(),
       })
       .eq('location_id', locationId)
+
+    if (updateErr) {
+      throw new Error(`processLocation: token refresh DB update failed for ${locationId}: ${updateErr.message}`)
+    }
   } else {
     accessToken = decrypt(tokenRow.access_token_encrypted, tokenRow.access_token_iv)
   }
 
-  // 3. Fetch unanswered reviews
-  const reviews = await fetchReviews(locationId, accessToken)
+  // 3. Look up GBP resource path (needed for GBP API calls — different from internal UUID)
+  const { data: locRow, error: locErr } = await getSupabase()
+    .from('locations')
+    .select('google_location_id')
+    .eq('id', locationId)
+    .single()
+
+  if (locErr || !locRow) throw new Error(`processLocation: location row not found for ${locationId}`)
+  const googleLocationId = locRow.google_location_id as string
+  if (!googleLocationId) throw new Error(`processLocation: google_location_id is empty for ${locationId}`)
+
+  // 4. Fetch unanswered reviews
+  const reviews = await fetchReviews(googleLocationId, accessToken)
   if (reviews.length === 0) return
 
-  // 4. Load brand voice — bail if auto-post is disabled
+  // 5. Load brand voice — bail if auto-post is disabled
   const brandVoice = await getBrandVoice(locationId)
   if (!brandVoice.auto_post_enabled) return
 
-  // 5. Load accepted calibration examples (few-shot context for generation)
+  // 6. Load accepted calibration examples (few-shot context for generation)
   const examples = await getCalibrationExamples(locationId)
 
-  // 6. Track last posted text to prevent duplicate responses within this run
+  // 7. Track last posted text to prevent duplicate responses within this run
   let lastPostedText = await getLastPostedText(locationId)
 
-  // 7. Process each review sequentially — parallel would risk duplicate detection gaps
+  // 8. Process each review sequentially — parallel would risk duplicate detection gaps
   for (const review of reviews) {
     const posted = await processOneReview(
       locationId,
+      googleLocationId,
       review,
       brandVoice,
       examples,

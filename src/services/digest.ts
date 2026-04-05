@@ -8,28 +8,34 @@ const FROM_ADDRESS = 'noreply@PLACEHOLDER_DOMAIN' // TODO: update when domain is
 
 // ─── Clients ─────────────────────────────────────────────────────────────────
 
-function buildSupabase() {
-  const url = process.env.SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY
-  if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required')
-  return createClient(url, key)
+let _supabase: ReturnType<typeof createClient> | undefined
+let _resend: Resend | undefined
+
+function getSupabase() {
+  if (!_supabase) {
+    const url = process.env.SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required')
+    _supabase = createClient(url, key)
+  }
+  return _supabase
 }
 
-function buildResend() {
-  const key = process.env.RESEND_API_KEY
-  if (!key) throw new Error('RESEND_API_KEY is not set')
-  return new Resend(key)
+function getResend() {
+  if (!_resend) {
+    const key = process.env.RESEND_API_KEY
+    if (!key) throw new Error('RESEND_API_KEY is not set')
+    _resend = new Resend(key)
+  }
+  return _resend
 }
-
-const supabase = buildSupabase()
-const resend = buildResend()
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type DigestData = {
   locationId: string
   period: 'daily' | 'weekly'
-  responseRate: number           // 0–100, posted / (posted + failed + blocked)
+  responseRate: number           // 0–100, responses posted / reviews received in period
   totalReviews: number
   negativeReviews: number        // rating <= 3
   complaintThemes: string[]      // e.g. ["wait time (3)", "cold food (2)"]
@@ -40,7 +46,7 @@ export type DigestData = {
 
 type NeedsAttentionItem = {
   reviewId: string
-  reason: 'failed' | 'blocked_pending_regen'
+  reason: 'failed' | 'retrying' | 'blocked_pending_regen'
   draftText: string
 }
 
@@ -102,33 +108,40 @@ export async function buildDigest(
   const startIso = start.toISOString()
   const endIso = end.toISOString()
 
-  // Responses posted in the period
-  const { data: responses, error: responsesErr } = await supabase
+  // Responses successfully posted in the period (posted_at is only set for posted rows)
+  const { data: postedRows, error: postedErr } = await getSupabase()
     .from('responses_posted')
-    .select('review_id, status, text, failure_reason')
+    .select('review_id')
     .eq('location_id', locationId)
+    .eq('status', 'posted')
     .gte('posted_at', startIso)
     .lte('posted_at', endIso)
 
-  if (responsesErr) throw new Error(`buildDigest responses: ${responsesErr.message}`)
+  if (postedErr) throw new Error(`buildDigest posted: ${postedErr.message}`)
 
-  const posted = (responses ?? []).filter(r => r.status === 'posted').length
-  const failed  = (responses ?? []).filter(r => r.status === 'failed').length
-  const blocked = (responses ?? []).filter(r => r.status === 'blocked_pending_regen').length
-  const total   = posted + failed + blocked
-  const responseRate = total === 0 ? 100 : Math.round((posted / total) * 100)
+  // Unresolved failures — responses_posted has no created_at, so we cannot filter by period.
+  // Show all outstanding failures for visibility; they are NOT counted in responseRate
+  // (we use reviews received in the period as the denominator instead — see below).
+  const { data: unresolvedRows, error: unresolvedErr } = await getSupabase()
+    .from('responses_posted')
+    .select('review_id, status, text')
+    .eq('location_id', locationId)
+    .in('status', ['failed', 'retrying', 'blocked_pending_regen'])
+    .limit(100)
 
-  // Needs-attention items: failed or blocked responses with their draft text
-  const needsAttention: NeedsAttentionItem[] = (responses ?? [])
-    .filter(r => r.status === 'failed' || r.status === 'blocked_pending_regen')
-    .map(r => ({
-      reviewId: r.review_id as string,
-      reason: r.status as 'failed' | 'blocked_pending_regen',
-      draftText: r.text as string,
-    }))
+  if (unresolvedErr) throw new Error(`buildDigest unresolved: ${unresolvedErr.message}`)
+
+  const posted = (postedRows ?? []).length
+
+  // Needs-attention items: all unresolved failures with their draft text
+  const needsAttention: NeedsAttentionItem[] = (unresolvedRows ?? []).map(r => ({
+    reviewId: r.review_id as string,
+    reason: r.status as 'failed' | 'retrying' | 'blocked_pending_regen',
+    draftText: r.text as string,
+  }))
 
   // Reviews received in the period
-  const { data: reviews, error: reviewsErr } = await supabase
+  const { data: reviews, error: reviewsErr } = await getSupabase()
     .from('reviews')
     .select('rating, text')
     .eq('location_id', locationId)
@@ -139,6 +152,10 @@ export async function buildDigest(
 
   const allReviews = reviews ?? []
   const negativeReviews = allReviews.filter(r => (r.rating as number) <= 3)
+
+  // responseRate = responses posted / reviews received in period.
+  // Using review count as denominator keeps the rate period-bounded and meaningful.
+  const responseRate = allReviews.length === 0 ? 100 : Math.round((posted / allReviews.length) * 100)
 
   const complaintThemes = extractComplaintThemes(
     negativeReviews.map(r => (r.text as string) ?? ''),
@@ -201,7 +218,7 @@ function buildDigestBody(data: DigestData): string {
 
 export async function sendDigest(locationId: string): Promise<void> {
   // Load notification preferences
-  const { data: prefs, error: prefsErr } = await supabase
+  const { data: prefs, error: prefsErr } = await getSupabase()
     .from('notification_preferences')
     .select('digest_frequency, digest_day, digest_time, timezone')
     .eq('location_id', locationId)
@@ -211,16 +228,22 @@ export async function sendDigest(locationId: string): Promise<void> {
     throw new Error(`sendDigest: no notification preferences for ${locationId}`)
   }
 
-  const frequency = prefs.digest_frequency as 'daily' | 'weekly'
+  const frequency  = prefs.digest_frequency as 'daily' | 'weekly'
   const digestDay  = prefs.digest_day as number | null   // 0=Sun … 6=Sat
+  const digestHour = prefs.digest_time as number         // 0–23, hour in owner's timezone
   const timezone   = (prefs.timezone as string) || 'UTC'
 
-  // Check whether today matches the schedule
+  // Check whether today + current hour matches the schedule
   const now = new Date()
-  const todayInTz = new Intl.DateTimeFormat('en-US', {
+  const formatter = new Intl.DateTimeFormat('en-US', {
     weekday: 'short',
+    hour: 'numeric',
+    hour12: false,
     timeZone: timezone,
-  }).format(now)
+  })
+  const parts = formatter.formatToParts(now)
+  const todayInTz     = parts.find(p => p.type === 'weekday')?.value ?? ''
+  const currentHourTz = parseInt(parts.find(p => p.type === 'hour')?.value ?? '-1', 10)
 
   // Map abbreviated weekday → 0-indexed day number matching digest_day
   const DAY_ABBR: Record<string, number> = {
@@ -228,14 +251,17 @@ export async function sendDigest(locationId: string): Promise<void> {
   }
   const todayDayNumber = DAY_ABBR[todayInTz]
 
+  // Only send during the configured hour — prevents duplicate sends across 15-min cron ticks
+  if (currentHourTz !== digestHour) return
+
   if (frequency === 'weekly') {
     if (digestDay === null || digestDay === undefined) return
-    if (todayDayNumber !== digestDay) return
+    if (todayDayNumber === undefined || todayDayNumber !== digestDay) return
   }
-  // daily: always send — no day check needed
+  // daily: hour check above is sufficient — no day check needed
 
   // Fetch owner email from Supabase auth via the location row
-  const { data: location, error: locErr } = await supabase
+  const { data: location, error: locErr } = await getSupabase()
     .from('locations')
     .select('owner_id')
     .eq('id', locationId)
@@ -243,7 +269,7 @@ export async function sendDigest(locationId: string): Promise<void> {
 
   if (locErr || !location) throw new Error(`sendDigest: location ${locationId} not found`)
 
-  const { data: { user }, error: userErr } = await supabase.auth.admin.getUserById(
+  const { data: { user }, error: userErr } = await getSupabase().auth.admin.getUserById(
     location.owner_id as string,
   )
   if (userErr || !user?.email) throw new Error(`sendDigest: owner email not found for ${locationId}`)
@@ -253,7 +279,7 @@ export async function sendDigest(locationId: string): Promise<void> {
   const subject = `Your review summary — ${formatDate(data.periodStart)} to ${formatDate(data.periodEnd)}`
   const body = buildDigestBody(data)
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM_ADDRESS,
     to: user.email,
     subject,
@@ -268,7 +294,7 @@ export async function sendFailureAlert(
   reviewId: string,
   draftText: string,
 ): Promise<void> {
-  const { data: location, error: locErr } = await supabase
+  const { data: location, error: locErr } = await getSupabase()
     .from('locations')
     .select('owner_id')
     .eq('id', locationId)
@@ -276,7 +302,7 @@ export async function sendFailureAlert(
 
   if (locErr || !location) throw new Error(`sendFailureAlert: location ${locationId} not found`)
 
-  const { data: { user }, error: userErr } = await supabase.auth.admin.getUserById(
+  const { data: { user }, error: userErr } = await getSupabase().auth.admin.getUserById(
     location.owner_id as string,
   )
   if (userErr || !user?.email) throw new Error(`sendFailureAlert: owner email not found for ${locationId}`)
@@ -299,7 +325,7 @@ export async function sendFailureAlert(
     'If this keeps happening, check your Google account connection in the app.',
   ].join('\n')
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM_ADDRESS,
     to: user.email,
     subject,
