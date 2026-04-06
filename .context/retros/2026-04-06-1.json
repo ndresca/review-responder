@@ -1,0 +1,48 @@
+{
+  "date": "2026-04-06",
+  "window": "7d",
+  "metrics": {
+    "commits": 11,
+    "contributors": 1,
+    "prs_merged": 0,
+    "insertions": 6947,
+    "deletions": 91,
+    "net_loc": 6856,
+    "test_loc": 56,
+    "test_ratio": 0.008,
+    "active_days": 2,
+    "sessions": 4,
+    "deep_sessions": 0,
+    "avg_session_minutes": 8,
+    "loc_per_session_hour": 12600,
+    "feat_pct": 0.82,
+    "fix_pct": 0.09,
+    "peak_hour": 21,
+    "ai_assisted_commits": 2
+  },
+  "authors": {
+    "ndrescasanova": {
+      "commits": 11,
+      "insertions": 6947,
+      "deletions": 91,
+      "test_ratio": 0.008,
+      "top_area": "src/app/api/"
+    }
+  },
+  "version_range": ["0.0.0", "0.0.0"],
+  "streak_days": 0,
+  "tweetable": "Week of Mar 30: 11 commits, 6.9k LOC, <1% tests, 0 PRs, peak: 9pm | New project from scratch",
+  "test_health": {
+    "total_test_files": 1,
+    "tests_added_this_period": 1,
+    "regression_test_commits": 0,
+    "test_files_changed": 1
+  },
+  "backlog": {
+    "total_open": 2,
+    "p0_p1": 0,
+    "p2": 2,
+    "completed_this_period": 0,
+    "added_this_period": 2
+  }
+}
