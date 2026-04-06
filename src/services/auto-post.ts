@@ -118,21 +118,37 @@ async function storeResponse(
   failureReason: string | null,
   attempts: number,
 ): Promise<void> {
-  const { error } = await getSupabase().from('responses_posted').insert({
-    location_id: locationId,
-    review_id: googleReviewId,
-    text,
-    posted_at: status === 'posted' ? new Date().toISOString() : null,
-    status,
-    failure_reason: failureReason,
-    attempts,
-  })
+  const { error } = await getSupabase().from('responses_posted').upsert(
+    {
+      location_id: locationId,
+      review_id: googleReviewId,
+      text,
+      posted_at: status === 'posted' ? new Date().toISOString() : null,
+      status,
+      failure_reason: failureReason,
+      attempts,
+    },
+    { onConflict: 'location_id,review_id' },
+  )
 
   if (error) {
     // Don't throw — a storage failure shouldn't unwind a successful post.
     // The response was already live on Google at this point.
     console.error(`storeResponse failed for ${googleReviewId}:`, error.message)
   }
+}
+
+// Check if we already have a response for this review (posted, failed, or blocked).
+// Prevents double-processing if the cron fires twice or Vercel cold-starts overlap.
+async function hasExistingResponse(locationId: string, googleReviewId: string): Promise<boolean> {
+  const { data } = await getSupabase()
+    .from('responses_posted')
+    .select('id')
+    .eq('location_id', locationId)
+    .eq('review_id', googleReviewId)
+    .maybeSingle()
+
+  return data !== null
 }
 
 // ─── Generation ──────────────────────────────────────────────────────────────
@@ -327,10 +343,69 @@ async function processOneReview(
  * Does not throw — all per-review errors are caught and stored.
  * A thrown error here indicates a location-level failure (bad tokens, missing config).
  */
+/**
+ * Refreshes the access token with a database-level lock to prevent concurrent
+ * refreshes from cron and calibration (which would cause invalid_grant errors
+ * because Google invalidates the old refresh token on use).
+ *
+ * Uses `refreshing_since` as a simple optimistic lock:
+ * 1. Atomically set refreshing_since WHERE it's null (or stale >60s)
+ * 2. If the update matched 0 rows, another process is refreshing — wait and re-read
+ * 3. If matched, we hold the lock — refresh, update tokens, clear the lock
+ */
+async function refreshAccessTokenWithLock(locationId: string): Promise<string> {
+  const LOCK_TIMEOUT_MS = 60_000
+  const now = new Date()
+
+  // Try to acquire the lock: set refreshing_since only if it's null or stale
+  const { data: locked, error: lockErr } = await getSupabase()
+    .from('oauth_tokens')
+    .update({ refreshing_since: now.toISOString() })
+    .eq('location_id', locationId)
+    .or(`refreshing_since.is.null,refreshing_since.lt.${new Date(now.getTime() - LOCK_TIMEOUT_MS).toISOString()}`)
+    .select('refresh_token_encrypted, refresh_token_iv')
+    .maybeSingle()
+
+  if (lockErr) throw new Error(`refreshAccessTokenWithLock: lock failed for ${locationId}: ${lockErr.message}`)
+
+  if (!locked) {
+    // Another process is actively refreshing. Wait briefly then re-read the fresh token.
+    await sleep(2000)
+    const freshRow = await getOAuthTokens(locationId)
+    return decrypt(freshRow.access_token_encrypted, freshRow.access_token_iv)
+  }
+
+  // We hold the lock. Refresh the token.
+  try {
+    const refreshToken = decrypt(locked.refresh_token_encrypted, locked.refresh_token_iv)
+    const refreshed = await refreshOAuthToken(refreshToken)
+    const { ciphertext, iv } = encrypt(refreshed.accessToken)
+
+    const { error: updateErr } = await getSupabase()
+      .from('oauth_tokens')
+      .update({
+        access_token_encrypted: ciphertext,
+        access_token_iv: iv,
+        expires_at: refreshed.expiresAt.toISOString(),
+        refreshing_since: null, // release the lock
+      })
+      .eq('location_id', locationId)
+
+    if (updateErr) throw new Error(`token refresh DB update failed: ${updateErr.message}`)
+    return refreshed.accessToken
+  } catch (err) {
+    // Release the lock on failure so the next caller can retry
+    await getSupabase()
+      .from('oauth_tokens')
+      .update({ refreshing_since: null })
+      .eq('location_id', locationId)
+    throw err
+  }
+}
+
 export async function processLocation(locationId: string): Promise<void> {
   // 1. Fetch and decrypt tokens
   const tokenRow = await getOAuthTokens(locationId)
-  const refreshToken = decrypt(tokenRow.refresh_token_encrypted, tokenRow.refresh_token_iv)
 
   // 2. Refresh access token if it expires within 5 minutes
   let accessToken: string
@@ -338,22 +413,7 @@ export async function processLocation(locationId: string): Promise<void> {
   const fiveMinutes = 5 * 60 * 1000
 
   if (expiresAt.getTime() - Date.now() <= fiveMinutes) {
-    const refreshed = await refreshOAuthToken(refreshToken)
-    accessToken = refreshed.accessToken
-
-    const { ciphertext, iv } = encrypt(refreshed.accessToken)
-    const { error: updateErr } = await getSupabase()
-      .from('oauth_tokens')
-      .update({
-        access_token_encrypted: ciphertext,
-        access_token_iv: iv,
-        expires_at: refreshed.expiresAt.toISOString(),
-      })
-      .eq('location_id', locationId)
-
-    if (updateErr) {
-      throw new Error(`processLocation: token refresh DB update failed for ${locationId}: ${updateErr.message}`)
-    }
+    accessToken = await refreshAccessTokenWithLock(locationId)
   } else {
     accessToken = decrypt(tokenRow.access_token_encrypted, tokenRow.access_token_iv)
   }
@@ -385,6 +445,9 @@ export async function processLocation(locationId: string): Promise<void> {
 
   // 8. Process each review sequentially — parallel would risk duplicate detection gaps
   for (const review of reviews) {
+    // Idempotency: skip reviews we've already processed (covers cron overlap, cold-start retries)
+    if (await hasExistingResponse(locationId, review.google_review_id)) continue
+
     const posted = await processOneReview(
       locationId,
       googleLocationId,

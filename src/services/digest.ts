@@ -220,7 +220,7 @@ export async function sendDigest(locationId: string): Promise<void> {
   // Load notification preferences
   const { data: prefs, error: prefsErr } = await getSupabase()
     .from('notification_preferences')
-    .select('digest_frequency, digest_day, digest_time, timezone')
+    .select('digest_frequency, digest_day, digest_time, timezone, last_digest_sent_at')
     .eq('location_id', locationId)
     .single()
 
@@ -259,6 +259,28 @@ export async function sendDigest(locationId: string): Promise<void> {
     if (todayDayNumber === undefined || todayDayNumber !== digestDay) return
   }
   // daily: hour check above is sufficient — no day check needed
+
+  // Dedup: skip if we already sent a digest in the last 23 hours (daily) or 6 days (weekly).
+  // This prevents the 4x-per-hour problem: cron fires at :00, :15, :30, :45 and all
+  // four calls pass the hour check. Only the first one gets through.
+  const lastSent = prefs.last_digest_sent_at ? new Date(prefs.last_digest_sent_at as string) : null
+  if (lastSent) {
+    const hoursSinceLast = (now.getTime() - lastSent.getTime()) / (1000 * 60 * 60)
+    const minGapHours = frequency === 'daily' ? 23 : 6 * 24
+    if (hoursSinceLast < minGapHours) return
+  }
+
+  // Mark as sent BEFORE actually sending — if the email fails, we skip this window
+  // rather than spam 4 copies. The next window will retry.
+  const { error: stampErr } = await getSupabase()
+    .from('notification_preferences')
+    .update({ last_digest_sent_at: now.toISOString() })
+    .eq('location_id', locationId)
+
+  if (stampErr) {
+    console.error(`sendDigest: failed to stamp last_digest_sent_at for ${locationId}:`, stampErr.message)
+    return
+  }
 
   // Fetch owner email from Supabase auth via the location row
   const { data: location, error: locErr } = await getSupabase()

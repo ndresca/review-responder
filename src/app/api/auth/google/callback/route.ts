@@ -7,6 +7,26 @@ const OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GBP_BASE = 'https://mybusiness.googleapis.com/v4'
 const STATE_COOKIE = 'oauth_state'
 
+// ─── Rate limiting ────────────────────────────────────────────────────────────
+// Simple in-memory sliding window per IP. Limits to 5 callback attempts per minute.
+// Sufficient for serverless: each cold start gets a fresh map, so worst case is
+// 5 * number_of_instances per minute — still far better than unlimited.
+
+const RATE_LIMIT_WINDOW_MS = 60_000
+const RATE_LIMIT_MAX = 5
+
+const rateLimitMap = new Map<string, number[]>()
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now()
+  const timestamps = rateLimitMap.get(ip) ?? []
+  const recent = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS)
+  if (recent.length >= RATE_LIMIT_MAX) return true
+  recent.push(now)
+  rateLimitMap.set(ip, recent)
+  return false
+}
+
 // ─── Supabase (service role — needed for oauth_tokens which blocks all client access) ──
 
 function buildSupabase() {
@@ -187,6 +207,16 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   const redirectError = (reason: string) =>
     NextResponse.redirect(`${appOrigin}/error?reason=${encodeURIComponent(reason)}`)
+
+  // ── 0. Rate limit ──────────────────────────────────────────────────────────
+
+  const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    ?? request.headers.get('x-real-ip')
+    ?? 'unknown'
+
+  if (isRateLimited(clientIp)) {
+    return redirectError('rate_limited')
+  }
 
   // ── 1. Read and validate state cookie ──────────────────────────────────────
 

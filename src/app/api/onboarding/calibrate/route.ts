@@ -94,6 +94,14 @@ async function fetchAllReviewsFirstPage(
 
 // ─── Token resolution (mirrors processLocation in auto-post.ts) ──────────────
 
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
+
+/**
+ * Resolves the access token for a location, refreshing if needed.
+ * Uses a database-level lock (refreshing_since column) to prevent concurrent
+ * refreshes from cron and calibration — Google invalidates the old refresh token
+ * on use, so two simultaneous refreshes cause invalid_grant errors.
+ */
 async function resolveAccessToken(
   supabase: SupabaseClient<any>,
   locationId: string,
@@ -118,24 +126,58 @@ async function resolveAccessToken(
   const fiveMinutes = 5 * 60 * 1000
 
   if (expiresAt.getTime() - Date.now() <= fiveMinutes) {
-    const refreshToken = decrypt(row.refresh_token_encrypted, row.refresh_token_iv)
-    const refreshed = await refreshOAuthToken(refreshToken)
+    const LOCK_TIMEOUT_MS = 60_000
+    const now = new Date()
 
-    const { ciphertext, iv } = encrypt(refreshed.accessToken)
-    const { error: updateErr } = await supabase
+    // Try to acquire the lock: set refreshing_since only if null or stale
+    const { data: locked, error: lockErr } = await supabase
       .from('oauth_tokens')
-      .update({
-        access_token_encrypted: ciphertext,
-        access_token_iv: iv,
-        expires_at: refreshed.expiresAt.toISOString(),
-      })
+      .update({ refreshing_since: now.toISOString() })
       .eq('location_id', locationId)
+      .or(`refreshing_since.is.null,refreshing_since.lt.${new Date(now.getTime() - LOCK_TIMEOUT_MS).toISOString()}`)
+      .select('refresh_token_encrypted, refresh_token_iv')
+      .maybeSingle()
 
-    if (updateErr) {
-      throw new Error(`resolveAccessToken: token refresh DB update failed for ${locationId}: ${updateErr.message}`)
+    if (lockErr) throw new Error(`resolveAccessToken: lock failed for ${locationId}: ${lockErr.message}`)
+
+    if (!locked) {
+      // Another process is refreshing. Wait briefly then re-read the fresh token.
+      await sleep(2000)
+      const { data: freshRow, error: freshErr } = await supabase
+        .from('oauth_tokens')
+        .select('access_token_encrypted, access_token_iv')
+        .eq('location_id', locationId)
+        .single()
+      if (freshErr || !freshRow) throw new Error(`resolveAccessToken: re-read failed for ${locationId}`)
+      return decrypt(freshRow.access_token_encrypted as string, freshRow.access_token_iv as string)
     }
 
-    return refreshed.accessToken
+    // We hold the lock. Refresh the token.
+    try {
+      const refreshToken = decrypt(locked.refresh_token_encrypted as string, locked.refresh_token_iv as string)
+      const refreshed = await refreshOAuthToken(refreshToken)
+
+      const { ciphertext, iv } = encrypt(refreshed.accessToken)
+      const { error: updateErr } = await supabase
+        .from('oauth_tokens')
+        .update({
+          access_token_encrypted: ciphertext,
+          access_token_iv: iv,
+          expires_at: refreshed.expiresAt.toISOString(),
+          refreshing_since: null, // release the lock
+        })
+        .eq('location_id', locationId)
+
+      if (updateErr) throw new Error(`resolveAccessToken: token refresh DB update failed for ${locationId}: ${updateErr.message}`)
+      return refreshed.accessToken
+    } catch (err) {
+      // Release the lock on failure
+      await supabase
+        .from('oauth_tokens')
+        .update({ refreshing_since: null })
+        .eq('location_id', locationId)
+      throw err
+    }
   }
 
   return decrypt(row.access_token_encrypted, row.access_token_iv)

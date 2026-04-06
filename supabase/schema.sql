@@ -69,7 +69,8 @@ create table oauth_tokens (
   access_token_iv           text not null,    -- AES-256-GCM IV (base64)
   refresh_token_encrypted   text not null,    -- AES-256-GCM ciphertext (base64)
   refresh_token_iv          text not null,    -- AES-256-GCM IV (base64)
-  expires_at                timestamptz not null
+  expires_at                timestamptz not null,
+  refreshing_since          timestamptz       -- set when a refresh is in progress; prevents concurrent refreshes
 );
 
 create index oauth_tokens_location_id_idx on oauth_tokens(location_id);
@@ -190,7 +191,10 @@ create table responses_posted (
   status          text not null default 'posted'
                   check (status in ('posted', 'failed', 'retrying', 'blocked_pending_regen')),
   failure_reason  text,
-  attempts        int not null default 0
+  attempts        int not null default 0,
+
+  -- Prevents the same review from getting two response rows (idempotency)
+  unique (location_id, review_id)
 );
 
 create index responses_posted_location_id_idx on responses_posted(location_id);
@@ -221,7 +225,8 @@ create table notification_preferences (
   digest_time       int not null default 9
                     check (digest_time between 0 and 23),    -- hour in owner's timezone
   timezone          text not null default 'UTC',
-  failure_alerts    bool not null default true
+  failure_alerts    bool not null default true,
+  last_digest_sent_at  timestamptz  -- prevents duplicate sends within the same hour window
 );
 
 create index notification_preferences_location_id_idx on notification_preferences(location_id);
