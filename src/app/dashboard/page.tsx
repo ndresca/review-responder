@@ -37,9 +37,10 @@ const REVIEWS = [
 ]
 
 function StarRating({ count }: { count: number }) {
+  const clamped = Math.max(0, Math.min(5, count))
   return (
-    <span className={styles.cardStars} aria-label={`${count} stars`}>
-      {'★'.repeat(count)}{'☆'.repeat(5 - count)}
+    <span className={styles.cardStars} aria-label={`${clamped} stars`}>
+      {'★'.repeat(clamped)}{'☆'.repeat(5 - clamped)}
     </span>
   )
 }
@@ -64,7 +65,7 @@ export default function DashboardPage() {
   }, [])
 
   return (
-    <main className={styles.page} role="main">
+    <main className={styles.page} >
       {/* Logo */}
       <header className={styles.pageHeader}>
         <div className={styles.logoPlaceholder} aria-hidden="true">

@@ -48,7 +48,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className={styles.page} role="main">
+    <main className={styles.page}>
       {/* Back nav */}
       <nav className={styles.backNav} aria-label="Navigation">
         <Link href="/dashboard" className={styles.backLink} aria-label="Back to Dashboard">

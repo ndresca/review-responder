@@ -3,7 +3,7 @@ import styles from './landing.module.css'
 
 export default function LandingPage() {
   return (
-    <main className={styles.page} role="main">
+    <main className={styles.page}>
       {/* Logo */}
       <header className={styles.logoWrap}>
         <div className={styles.logoPlaceholder} aria-hidden="true">

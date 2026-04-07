@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import styles from './onboarding.module.css'
 
@@ -69,9 +69,8 @@ export default function OnboardingPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
 
-  function startCalibLoading() {
-    setCalibLoading(true)
-    setCalibReady(false)
+  useEffect(() => {
+    if (!calibLoading) return
 
     let msgIdx = 0
     const msgInterval = setInterval(() => {
@@ -81,19 +80,30 @@ export default function OnboardingPage() {
       }
     }, 800)
 
-    requestAnimationFrame(() => {
-      setLoadingProgress(15)
-      setTimeout(() => setLoadingProgress(40), 400)
-      setTimeout(() => setLoadingProgress(70), 1200)
-      setTimeout(() => setLoadingProgress(90), 2200)
-      setTimeout(() => setLoadingProgress(100), 2800)
-    })
+    const timers = [
+      setTimeout(() => setLoadingProgress(15), 16),
+      setTimeout(() => setLoadingProgress(40), 400),
+      setTimeout(() => setLoadingProgress(70), 1200),
+      setTimeout(() => setLoadingProgress(90), 2200),
+      setTimeout(() => setLoadingProgress(100), 2800),
+      setTimeout(() => {
+        clearInterval(msgInterval)
+        setCalibLoading(false)
+        setCalibReady(true)
+      }, 3200),
+    ]
 
-    setTimeout(() => {
+    return () => {
       clearInterval(msgInterval)
-      setCalibLoading(false)
-      setCalibReady(true)
-    }, 3200)
+      timers.forEach(clearTimeout)
+    }
+  }, [calibLoading])
+
+  function startCalibLoading() {
+    setCalibLoading(true)
+    setCalibReady(false)
+    setLoadingProgress(0)
+    setLoadingMsg(LOADING_MESSAGES[0])
   }
 
   function handleAccept(id: string) {
@@ -114,11 +124,12 @@ export default function OnboardingPage() {
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
+    e.currentTarget.classList.remove(styles.dragover)
     if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0])
   }
 
   return (
-    <main className={styles.page} role="main">
+    <main className={styles.page}>
       {/* Logo */}
       <header className={styles.pageHeader}>
         <div className={styles.logoPlaceholder} aria-hidden="true">
