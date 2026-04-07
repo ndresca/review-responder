@@ -203,7 +203,7 @@ export default function OnboardingPage() {
   function handleStep2Continue() {
     if (!validateStep2()) return
     goToStep(3)
-    startCalibLoading()
+    setCalibReady(true)
   }
 
   function handleAccept(id: string) {
@@ -308,10 +308,17 @@ export default function OnboardingPage() {
                 Connect your Google Business Profile to get started — we&apos;ll handle responses from there.
               </p>
             </div>
-            <a href="/api/auth/google" className={`${styles.btn} ${styles.btnGoogle}`}>
-              <span className={styles.googleMark} aria-hidden="true">G</span>
-              Connect with Google
-            </a>
+            {process.env.NEXT_PUBLIC_DEMO_MODE === 'true' ? (
+              <button className={`${styles.btn} ${styles.btnGoogle}`} onClick={startAnalysis}>
+                <span className={styles.googleMark} aria-hidden="true">G</span>
+                Connect with Google
+              </button>
+            ) : (
+              <a href="/api/auth/google" className={`${styles.btn} ${styles.btnGoogle}`}>
+                <span className={styles.googleMark} aria-hidden="true">G</span>
+                Connect with Google
+              </a>
+            )}
             <p className={styles.connectNote}>
               We request read access to your reviews and post permission for responses.<br />
               You can disconnect at any time from Settings.
@@ -328,8 +335,11 @@ export default function OnboardingPage() {
             We pre-filled this from your Google Business Profile and review history. Edit anything that doesn&apos;t feel right.
           </p>
 
+          {/* Required fields */}
           <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="restaurant-name">Restaurant name</label>
+            <label className={styles.fieldLabel} htmlFor="restaurant-name">
+              Restaurant name <span className={styles.fieldRequired}>required</span>
+            </label>
             <input
               type="text"
               id="restaurant-name"
@@ -345,7 +355,9 @@ export default function OnboardingPage() {
           </div>
 
           <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="brand-voice">Your brand voice</label>
+            <label className={styles.fieldLabel} htmlFor="brand-voice">
+              Your brand voice <span className={styles.fieldRequired}>required</span>
+            </label>
             <textarea
               id="brand-voice"
               rows={5}
@@ -362,61 +374,28 @@ export default function OnboardingPage() {
           </div>
 
           <div className={styles.field}>
-            <label className={styles.fieldLabel}>
-              Upload a brand book or tone guide <span className={styles.fieldOptional}>optional</span>
+            <label className={styles.fieldLabel} htmlFor="language">
+              Primary language <span className={styles.fieldRequired}>required</span>
             </label>
-            <div
-              className={styles.dropZone}
-              tabIndex={0}
-              role="button"
-              aria-label="Upload a file"
-              onClick={() => fileInputRef.current?.click()}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click() } }}
-              onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add(styles.dragover) }}
-              onDragLeave={(e) => e.currentTarget.classList.remove(styles.dragover)}
-              onDrop={handleDrop}
+            <select
+              id="language"
+              className={styles.select}
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
             >
-              <svg className={styles.dropZoneIcon} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-              <span className={styles.dropZoneText}>Drop a file or click to browse</span>
-              <span className={styles.dropZoneFormats}>PDF, DOC, DOCX, TXT</span>
-              {fileName && <span className={styles.dropZoneFile}>✓ {fileName}</span>}
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf,.doc,.docx,.txt,.rtf"
-              hidden
-              onChange={(e) => { if (e.target.files?.length) handleFile(e.target.files[0]) }}
-            />
+              <option value="en">English</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="pt">Portuguese</option>
+              <option value="it">Italian</option>
+              <option value="de">German</option>
+              <option value="ja">Japanese</option>
+              <option value="zh">Mandarin</option>
+              <option value="ar">Arabic</option>
+            </select>
           </div>
 
-          {/* Multi-language toggle */}
-          <div className={styles.langToggleWrap}>
-            <div className={styles.alertToggleRow}>
-              <div className={styles.alertToggleInfo}>
-                <span className={styles.alertToggleLabel}>Respond in the language of each review</span>
-                <span className={styles.alertToggleDesc}>
-                  A Spanish review gets a Spanish reply. An English review gets an English reply.
-                </span>
-              </div>
-              <button
-                className={styles.toggle}
-                role="switch"
-                aria-checked={autoLang}
-                aria-label="Auto-detect review language"
-                onClick={() => setAutoLang(!autoLang)}
-              >
-                <span className={styles.toggleTrack}>
-                  <span className={styles.toggleThumb} />
-                </span>
-              </button>
-            </div>
-          </div>
-
+          {/* Optional section */}
           <p className={styles.optionalSectionLabel}>Optional details</p>
 
           <div className={styles.optionalFields}>
@@ -450,26 +429,61 @@ export default function OnboardingPage() {
               />
             </div>
 
-            <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="language">
-                Primary language <span className={styles.fieldOptional}>optional</span>
-              </label>
-              <select
-                id="language"
-                className={styles.select}
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
+            {/* Multi-language toggle */}
+            <div className={styles.fieldToggleRow}>
+              <div className={styles.fieldToggleInfo}>
+                <span className={styles.fieldLabel}>
+                  Respond in the language of each review <span className={styles.fieldOptional}>optional</span>
+                </span>
+                <span className={styles.fieldToggleSub}>
+                  For example: an English review gets an English reply, a Spanish{' '}<br />
+                  review gets a Spanish reply, and so on.
+                </span>
+              </div>
+              <button
+                className={styles.toggle}
+                role="switch"
+                aria-checked={autoLang}
+                aria-label="Auto-detect review language"
+                onClick={() => setAutoLang(!autoLang)}
               >
-                <option value="en">English</option>
-                <option value="es">Spanish</option>
-                <option value="fr">French</option>
-                <option value="pt">Portuguese</option>
-                <option value="it">Italian</option>
-                <option value="de">German</option>
-                <option value="ja">Japanese</option>
-                <option value="zh">Mandarin</option>
-                <option value="ar">Arabic</option>
-              </select>
+                <span className={styles.toggleTrack}>
+                  <span className={styles.toggleThumb} />
+                </span>
+              </button>
+            </div>
+
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>
+                Upload a brand book or tone guide <span className={styles.fieldOptional}>optional</span>
+              </label>
+              <div
+                className={styles.dropZone}
+                tabIndex={0}
+                role="button"
+                aria-label="Upload a file"
+                onClick={() => fileInputRef.current?.click()}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click() } }}
+                onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add(styles.dragover) }}
+                onDragLeave={(e) => e.currentTarget.classList.remove(styles.dragover)}
+                onDrop={handleDrop}
+              >
+                <svg className={styles.dropZoneIcon} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                <span className={styles.dropZoneText}>Drop a file or click to browse</span>
+                <span className={styles.dropZoneFormats}>PDF, DOC, DOCX, TXT</span>
+                {fileName && <span className={styles.dropZoneFile}>✓ {fileName}</span>}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.doc,.docx,.txt,.rtf"
+                hidden
+                onChange={(e) => { if (e.target.files?.length) handleFile(e.target.files[0]) }}
+              />
             </div>
           </div>
 

@@ -222,9 +222,18 @@
 }
 
 .fieldOptional {
+  font-family: var(--font-mono);
   font-weight: 400;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+.fieldRequired {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  color: var(--error);
+  font-size: 11px;
   margin-left: 4px;
 }
 
@@ -599,6 +608,7 @@
   padding: 0;
   cursor: pointer;
   flex-shrink: 0;
+  margin-top: 2px;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -746,13 +756,29 @@
 .btnFeedbackSubmit:hover { opacity: 0.88; }
 .btnFeedbackSubmit:disabled { opacity: 0.6; cursor: default; }
 
-/* ── Language auto-detect toggle ────────────────────────────────────── */
-.langToggleWrap {
-  margin-bottom: 28px;
-  padding: 20px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+/* ── Field toggle row (matches settings notification toggles) ───────── */
+.fieldToggleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.fieldToggleInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.fieldToggleInfo .fieldLabel {
+  margin-bottom: 2px;
+}
+
+.fieldToggleSub {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 /* ── STEP 5: Payment ────────────────────────────────────────────────── */

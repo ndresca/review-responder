@@ -228,9 +228,6 @@ export default function SettingsPage() {
           <>
             <div className={styles.voicePreview}>
               <p className={styles.voiceText}>{brandVoice}</p>
-              <button className={styles.voiceEditInline} onClick={startEditVoice} aria-label="Edit brand voice description">
-                Edit
-              </button>
             </div>
 
             <div className={styles.voiceChips}>
