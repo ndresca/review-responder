@@ -1,0 +1,276 @@
+/* ── Page shell ─────────────────────────────────────────────────────── */
+.page {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 24px;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Status hero ────────────────────────────────────────────────────── */
+.statusHero {
+  padding: 72px 0 48px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.statusRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .statusDot {
+    animation: breathe 4s ease-in-out infinite;
+  }
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+.statusDotLabel {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--success);
+  letter-spacing: 0.04em;
+}
+
+.headline {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(38px, 9vw, 52px);
+  line-height: 1.15;
+  color: var(--text);
+  font-style: normal;
+  letter-spacing: -0.01em;
+  overflow: visible;
+  margin-bottom: 16px;
+}
+
+.weeklyCount {
+  font-size: 15px;
+  color: var(--muted);
+  font-family: var(--font-body);
+}
+
+.weeklyCount a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.15s;
+}
+.weeklyCount a:hover {
+  border-color: var(--accent);
+}
+
+/* ── Activity feed ──────────────────────────────────────────────────── */
+.feed {
+  flex: 1;
+}
+
+.feedLabel {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  margin-bottom: 10px;
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.noMotion {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .visible {
+    animation: stagger-in 0.3s ease-out forwards;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes stagger-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cardHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.cardReviewer {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cardMeta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.cardStars {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent);
+  letter-spacing: -1px;
+}
+
+.cardTime {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.cardReviewText {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.55;
+  margin-bottom: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cardResponse {
+  border-left: 2px solid var(--success);
+  padding-left: 12px;
+}
+
+.cardResponseTag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--success);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+}
+
+.cardResponseBody {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.55;
+  overflow: hidden;
+}
+
+/* ── Logo placeholder ───────────────────────────────────────────────── */
+.pageHeader {
+  padding: 28px 0 0;
+  display: flex;
+  justify-content: center;
+}
+
+.logoPlaceholder {
+  width: 120px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1.5px dashed var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.45;
+}
+
+.logoPlaceholderText {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  text-transform: uppercase;
+  user-select: none;
+}
+
+/* ── Footer pill button ─────────────────────────────────────────────── */
+.pageFooter {
+  padding: 32px 0 48px;
+  display: flex;
+  justify-content: center;
+}
+
+.repliesBtn {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 22px;
+  border-radius: 9999px;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: opacity 0.15s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.repliesBtn:active {
+  transform: scale(0.97);
+}
+
+.repliesBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.repliesBtn[data-active="true"] {
+  background: rgba(61, 122, 90, 0.12);
+  color: #3D7A5A;
+}
+
+.repliesBtn[data-active="false"] {
+  background: rgba(200, 68, 15, 0.10);
+  color: #C8440F;
+}
+
+.repliesBtn[data-active="true"]:hover  { opacity: 0.8; }
+.repliesBtn[data-active="false"]:hover { opacity: 0.8; }
+
+.repliesBtnDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}

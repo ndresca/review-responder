@@ -1,0 +1,673 @@
+/* ── Page shell ──────────────────────────────────────────────────────── */
+.page {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 24px 64px;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Logo ────────────────────────────────────────────────────────────── */
+.pageHeader {
+  padding: 28px 0 0;
+  display: flex;
+  justify-content: center;
+}
+
+.logoPlaceholder {
+  width: 120px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1.5px dashed var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.45;
+}
+
+.logoPlaceholderText {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  text-transform: uppercase;
+  user-select: none;
+}
+
+/* ── Progress bar ────────────────────────────────────────────────────── */
+.progressBarWrap {
+  padding: 24px 0 0;
+  display: flex;
+  gap: 6px;
+}
+
+.progressSegment {
+  height: 3px;
+  flex: 1;
+  border-radius: 9999px;
+  background: var(--border);
+  transition: background 0.35s ease;
+}
+
+.progressSegment.done    { background: var(--success); }
+.progressSegment.active  { background: var(--accent); }
+
+/* ── Step container ──────────────────────────────────────────────────── */
+.step {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding-top: 48px;
+  animation: step-in 0.28s ease-out both;
+}
+
+@keyframes step-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step { animation: none; }
+}
+
+/* ── Shared step typography ──────────────────────────────────────────── */
+.stepHeadline {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(28px, 7vw, 38px);
+  line-height: 1.2;
+  color: var(--text);
+  margin-bottom: 10px;
+  letter-spacing: -0.01em;
+}
+
+.stepSub {
+  font-size: 15px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 40px;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────── */
+.btn {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  padding: 13px 24px;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: opacity 0.15s, transform 0.1s;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn:active { transform: scale(0.97); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.btnPrimary {
+  background: var(--accent);
+  color: white;
+  width: 100%;
+}
+.btnPrimary:hover { opacity: 0.88; }
+
+.btnSuccess {
+  background: rgba(61, 122, 90, 0.12);
+  color: var(--success);
+  font-size: 14px;
+  padding: 9px 18px;
+}
+.btnSuccess:hover { opacity: 0.8; }
+
+.btnGhost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border-med);
+  font-size: 14px;
+  padding: 9px 18px;
+}
+.btnGhost:hover { color: var(--text); border-color: var(--muted); }
+
+/* Google button */
+.btnGoogle {
+  background: var(--text);
+  color: var(--bg);
+  width: 100%;
+}
+.btnGoogle:hover { opacity: 0.85; }
+
+.googleMark {
+  width: 20px;
+  height: 20px;
+  background: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #EA4335;
+  font-family: Arial, sans-serif;
+  flex-shrink: 0;
+}
+
+/* ── STEP 1: Connect card ────────────────────────────────────────────── */
+.connectCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 40px 32px 32px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.connectHeadline {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(24px, 6vw, 32px);
+  line-height: 1.2;
+  color: var(--text);
+  margin-bottom: 0;
+}
+
+.connectSub {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.connectNote {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+/* ── STEP 2: Brand voice fields ──────────────────────────────────────── */
+.field {
+  margin-bottom: 24px;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.fieldOptional {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 12px;
+  margin-left: 4px;
+}
+
+.textInput, .textarea, .select {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-med);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  width: 100%;
+  line-height: 1.6;
+  outline: none;
+  transition: border-color 0.15s;
+  -webkit-appearance: none;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.textInput:focus, .textarea:focus, .select:focus {
+  border-color: var(--accent);
+}
+
+.textInput::placeholder, .textarea::placeholder {
+  color: var(--muted);
+}
+
+.select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238C7B6B' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+
+.optionalFields {
+  display: grid;
+  gap: 16px;
+  padding-top: 8px;
+}
+
+.optionalSectionLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+/* ── Drop zone ───────────────────────────────────────────────────────── */
+.dropZone {
+  border: 2px dashed var(--border-med);
+  border-radius: var(--radius-md);
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  background: transparent;
+}
+
+.dropZone:hover, .dragover {
+  border-color: var(--accent);
+  background: rgba(181, 118, 10, 0.04);
+}
+
+.dropZone:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.dropZoneIcon {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.dropZoneText {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.dropZoneFormats {
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.dropZoneFile {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--success);
+  margin-top: 4px;
+}
+
+/* ── STEP 3: Calibration ─────────────────────────────────────────────── */
+.calibLoading {
+  padding: 64px 0;
+  display: flex;
+  justify-content: center;
+}
+
+.calibLoadingInner {
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+}
+
+.calibLoadingBar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 9999px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.calibLoadingFill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+.calibLoadingText {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.5;
+  animation: textPulse 2s ease-in-out infinite;
+}
+
+@keyframes textPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calibLoadingText { animation: none; }
+  .calibLoadingFill { transition: none; }
+}
+
+.calibrationProgress {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.55;
+  margin-bottom: 24px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.calibrationProgress strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.calibrationCount {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--success);
+  font-weight: 500;
+}
+
+.calibCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 12px;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.calibCardAccepted {
+  border-color: rgba(61, 122, 90, 0.45);
+  background: rgba(61, 122, 90, 0.04);
+}
+
+.calibHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.calibStars {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: -1px;
+}
+
+.calibStarsPositive { color: var(--success); }
+.calibStarsMixed    { color: var(--accent); }
+.calibStarsNegative { color: var(--error); }
+
+.calibTypeBadge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-weight: 500;
+}
+
+.calibTypePositive {
+  color: var(--success);
+  background: rgba(61, 122, 90, 0.10);
+}
+
+.calibTypeMixed {
+  color: var(--accent);
+  background: rgba(181, 118, 10, 0.10);
+}
+
+.calibTypeNegative {
+  color: var(--error);
+  background: rgba(200, 68, 15, 0.10);
+}
+
+.calibAcceptedBadge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--success);
+  transition: opacity 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-left: auto;
+}
+
+.calibReview {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calibResponseWrap {
+  border-left: 2px solid var(--success);
+  padding-left: 12px;
+  margin-bottom: 14px;
+}
+
+.calibResponseTag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--success);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+}
+
+.calibResponseBody {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.55;
+  overflow: hidden;
+}
+
+.calibActions {
+  display: flex;
+  gap: 8px;
+}
+
+.goLiveWrap {
+  margin-top: 24px;
+  animation: step-in 0.25s ease-out both;
+}
+
+/* ── STEP 4: Digest ──────────────────────────────────────────────────── */
+.digestOptions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.digestOption {
+  background: var(--surface);
+  border: 2px solid var(--border-med);
+  border-radius: var(--radius-lg);
+  padding: 24px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.digestOption:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.digestOptionSelected {
+  border-color: var(--accent);
+  background: rgba(181, 118, 10, 0.06);
+}
+
+.digestOptionIcon {
+  font-size: 22px;
+  margin-bottom: 10px;
+  display: block;
+}
+
+.digestOptionLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.digestOptionDesc {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ── Alert toggle ────────────────────────────────────────────────────── */
+.alertToggleWrap {
+  margin-bottom: 28px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.alertToggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.alertToggleInfo {
+  flex: 1;
+}
+
+.alertToggleLabel {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.alertToggleDesc {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 14px;
+}
+
+.toggleTrack {
+  display: block;
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--border-med);
+  position: relative;
+  transition: background 0.2s;
+}
+
+.toggle[aria-checked="true"] .toggleTrack {
+  background: var(--accent);
+}
+
+.toggleThumb {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.toggle[aria-checked="true"] .toggleThumb {
+  transform: translateX(20px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggleThumb { transition: none; }
+  .toggleTrack { transition: none; }
+}
+
+/* ── Time picker ─────────────────────────────────────────────────────── */
+.timeField {
+  margin-bottom: 36px;
+}
+
+.timeField label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+
+.hourPicker {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: fit-content;
+  border: 1px solid var(--border-med);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.hourBtn {
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, color 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.hourBtn:hover { background: var(--bg); color: var(--text); }
+.hourBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.hourDisplay {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  min-width: 80px;
+  text-align: center;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  padding: 0 12px;
+  line-height: 44px;
+  user-select: none;
+}

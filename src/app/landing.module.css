@@ -1,0 +1,256 @@
+.page {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 24px 64px;
+}
+
+/* ── Logo ──────────────────────────────────────────────────────────── */
+.logoWrap {
+  padding: 32px 0 0;
+  display: flex;
+  justify-content: center;
+}
+
+.logoPlaceholder {
+  width: 120px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1.5px dashed var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.45;
+}
+
+.logoText {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  text-transform: uppercase;
+  user-select: none;
+}
+
+/* ── Hero ──────────────────────────────────────────────────────────── */
+.hero {
+  text-align: center;
+  padding: 56px 0 0;
+}
+
+.heroHeadline {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(36px, 9vw, 48px);
+  line-height: 1.15;
+  color: var(--text);
+  letter-spacing: -0.015em;
+  margin-bottom: 16px;
+}
+
+.heroSub {
+  font-size: 15px;
+  color: var(--muted);
+  line-height: 1.65;
+  max-width: 440px;
+  margin: 0 auto 32px;
+}
+
+.btnCta {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 14px 32px;
+  width: 100%;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btnCta:hover { opacity: 0.88; }
+.btnCta:active { transform: scale(0.97); }
+.btnCta:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+@media (min-width: 480px) {
+  .btnCta {
+    width: auto;
+    display: inline-block;
+    padding: 14px 48px;
+  }
+}
+
+.trustLine {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 14px;
+}
+
+/* ── Section divider ───────────────────────────────────────────────── */
+.sectionDivider {
+  height: 1px;
+  background: var(--border-med);
+  margin: 56px 0;
+}
+
+/* ── How it works ──────────────────────────────────────────────────── */
+.stepsSection {
+  padding: 0;
+}
+
+.sectionTitle {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(22px, 5.5vw, 24px);
+  line-height: 1.3;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  margin-bottom: 32px;
+}
+
+.stepItem {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.stepItem:last-child { margin-bottom: 0; }
+
+.stepNum {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(181, 118, 10, 0.10);
+  margin-top: 1px;
+}
+
+.stepBody {
+  flex: 1;
+}
+
+.stepLabel {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.stepDesc {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+/* ── Social proof ──────────────────────────────────────────────────── */
+.testimonials {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.testimonial {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+}
+
+.testimonialStars {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--accent);
+  letter-spacing: -1px;
+  margin-bottom: 8px;
+}
+
+.testimonialQuote {
+  font-size: 15px;
+  color: var(--text);
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+
+.testimonialSource {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ── Pricing ───────────────────────────────────────────────────────── */
+.pricingCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 36px 28px;
+  text-align: center;
+}
+
+.pricingAmount {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(28px, 7vw, 32px);
+  color: var(--text);
+  line-height: 1.2;
+  margin-bottom: 6px;
+}
+
+.pricingSub {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 28px;
+}
+
+.pricingFeatures {
+  list-style: none;
+  text-align: left;
+  margin-bottom: 28px;
+}
+
+.pricingFeature {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.55;
+  padding: 6px 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.pricingCheck {
+  color: var(--success);
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* ── Footer ────────────────────────────────────────────────────────── */
+.siteFooter {
+  text-align: center;
+  padding: 48px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.siteFooter a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.siteFooter a:hover { color: var(--text); }

@@ -1,0 +1,393 @@
+/* ── Page shell ──────────────────────────────────────────────────────── */
+.page {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 24px 80px;
+}
+
+/* ── Back nav ────────────────────────────────────────────────────────── */
+.backNav {
+  padding: 24px 0 0;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.backLink:hover { color: var(--text); }
+.backLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+/* ── Page title ──────────────────────────────────────────────────────── */
+.pageTitle {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 36px;
+  line-height: 1.2;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  padding: 20px 0 36px;
+}
+
+/* ── Sections ────────────────────────────────────────────────────────── */
+.settingsSection {
+  padding: 32px 0;
+  border-top: 1px solid var(--border-med);
+}
+
+.firstSection {
+  border-top: none;
+  padding-top: 0;
+}
+
+.sectionLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 20px;
+  letter-spacing: 0.01em;
+}
+
+/* ── Fields ──────────────────────────────────────────────────────────── */
+.field {
+  margin-bottom: 20px;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.textInput {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-med);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  width: 100%;
+  line-height: 1.6;
+  outline: none;
+  transition: border-color 0.15s;
+  -webkit-appearance: none;
+}
+
+.textInput:focus {
+  border-color: var(--accent);
+}
+
+/* ── GBP status ──────────────────────────────────────────────────────── */
+.gbpStatus {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--success);
+  background: rgba(61, 122, 90, 0.10);
+  padding: 4px 10px;
+  border-radius: 9999px;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  animation: pulseDot 4s ease-in-out infinite;
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .statusDot { animation: none; }
+}
+
+.statusEmail {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.disconnectLink {
+  font-size: 12px;
+  color: var(--error);
+  text-decoration: none;
+  margin-left: auto;
+  transition: opacity 0.15s;
+}
+
+.disconnectLink:hover { opacity: 0.7; }
+.disconnectLink:focus-visible { outline: 2px solid var(--error); outline-offset: 3px; border-radius: 2px; }
+
+/* ── Brand voice ─────────────────────────────────────────────────────── */
+.voicePreview {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.voiceText {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.voiceEditInline {
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+  margin-top: 8px;
+  display: inline-block;
+  transition: opacity 0.15s;
+}
+
+.voiceEditInline:hover { opacity: 0.7; }
+.voiceEditInline:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+.voiceChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.voiceChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  padding: 5px 12px;
+}
+
+.voiceChipLabel {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 11px;
+}
+
+.btnOutline {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  background: transparent;
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btnOutline:hover {
+  background: rgba(181, 118, 10, 0.06);
+}
+
+.btnOutline:active { transform: scale(0.97); }
+.btnOutline:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* ── Notification toggles ────────────────────────────────────────────── */
+.toggleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.toggleRowLast {
+  border-bottom: none;
+}
+
+.toggleInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.toggleLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  display: block;
+  margin-bottom: 2px;
+}
+
+.toggleSub {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-top: 2px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 14px;
+}
+
+.toggleTrack {
+  display: block;
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--border-med);
+  position: relative;
+  transition: background 0.2s;
+}
+
+.toggle[aria-checked="true"] .toggleTrack {
+  background: var(--accent);
+}
+
+.toggleThumb {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.toggle[aria-checked="true"] .toggleThumb {
+  transform: translateX(20px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggleThumb { transition: none; }
+  .toggleTrack { transition: none; }
+}
+
+/* ── Danger zone ─────────────────────────────────────────────────────── */
+.dangerLabel {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+
+.dangerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.dangerRowLast {
+  border-bottom: none;
+}
+
+.dangerInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.dangerActionLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  display: block;
+  margin-bottom: 2px;
+}
+
+.dangerSub {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.btnMutedOutline {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  border: 1.5px solid var(--border-med);
+  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btnMutedOutline:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.btnMutedOutline:active { transform: scale(0.97); }
+.btnMutedOutline:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.deleteLink {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--error);
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-body);
+  padding: 8px 0;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.deleteLink:hover { opacity: 0.7; }
+.deleteLink:focus-visible { outline: 2px solid var(--error); outline-offset: 3px; border-radius: 2px; }
