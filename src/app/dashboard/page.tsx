@@ -46,22 +46,20 @@ function StarRating({ count }: { count: number }) {
 
 export default function DashboardPage() {
   const [active, setActive] = useState(true)
-  const [cardsVisible, setCardsVisible] = useState(false)
+  const [prefersReduced, setPrefersReduced] = useState(false)
   const cardRefs = useRef<(HTMLElement | null)[]>([])
 
   useEffect(() => {
-    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (prefersReduced) {
-      setCardsVisible(true)
-      return
-    }
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    setPrefersReduced(reduced)
+    if (reduced) return
+
     const timers = REVIEWS.map((_, i) =>
       setTimeout(() => {
         const el = cardRefs.current[i]
         if (el) el.classList.add(styles.visible)
       }, 80 + i * 150)
     )
-    setCardsVisible(true)
     return () => timers.forEach(clearTimeout)
   }, [])
 
@@ -107,7 +105,7 @@ export default function DashboardPage() {
         {REVIEWS.map((review, i) => (
           <article
             key={review.reviewer}
-            className={`${styles.card} ${cardsVisible && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? '' : styles.noMotion}`}
+            className={`${styles.card} ${prefersReduced ? styles.noMotion : ''}`}
             ref={(el) => { cardRefs.current[i] = el }}
           >
             <div className={styles.cardHeader}>
