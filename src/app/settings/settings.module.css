@@ -5,6 +5,19 @@
   padding: 0 24px 80px;
 }
 
+/* ── Paused banner ──────────────────────────────────────────────────── */
+.pausedBanner {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--error);
+  background: rgba(200, 68, 15, 0.08);
+  border: 1px solid rgba(200, 68, 15, 0.2);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  margin-top: 16px;
+  text-align: center;
+}
+
 /* ── Back nav ────────────────────────────────────────────────────────── */
 .backNav {
   padding: 24px 0 0;
@@ -391,3 +404,216 @@
 
 .deleteLink:hover { opacity: 0.7; }
 .deleteLink:focus-visible { outline: 2px solid var(--error); outline-offset: 3px; border-radius: 2px; }
+
+/* ── Cancel subscription link ──────────────────────────────────────── */
+.cancelSubLink {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px 0;
+  transition: color 0.15s;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.cancelSubLink:hover { color: var(--text); }
+
+/* ── Voice edit form ───────────────────────────────────────────────── */
+.voiceEditForm {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+}
+
+.textarea {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-med);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  width: 100%;
+  line-height: 1.6;
+  outline: none;
+  transition: border-color 0.15s;
+  resize: vertical;
+  min-height: 120px;
+}
+.textarea:focus { border-color: var(--accent); }
+
+.selectInput {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-med);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238C7B6B' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+.selectInput:focus { border-color: var(--accent); }
+
+.voiceEditActions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.btnAmberSmall {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 8px 20px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btnAmberSmall:hover { opacity: 0.88; }
+
+/* ── Time picker ───────────────────────────────────────────────────── */
+.timeField {
+  margin-top: 16px;
+}
+
+.hourPicker {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: fit-content;
+  border: 1px solid var(--border-med);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface);
+  margin-top: 6px;
+}
+
+.hourBtn {
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, color 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.hourBtn:hover { background: var(--bg); color: var(--text); }
+
+.hourDisplay {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  min-width: 80px;
+  text-align: center;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  padding: 0 12px;
+  line-height: 44px;
+  user-select: none;
+}
+
+/* ── Dialog overlay ────────────────────────────────────────────────── */
+.dialogOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 20, 16, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+
+.dialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px 24px 24px;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 8px 32px rgba(28, 20, 16, 0.12);
+}
+
+.dialogText {
+  font-size: 15px;
+  color: var(--text);
+  line-height: 1.55;
+  margin-bottom: 20px;
+}
+
+.dialogActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ── Save / amber buttons ──────────────────────────────────────────── */
+.saveWrap {
+  position: sticky;
+  bottom: 24px;
+  padding-top: 16px;
+}
+
+.btnAmber {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 13px 24px;
+  width: 100%;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btnAmber:hover { opacity: 0.88; }
+
+.btnDialogMuted {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.btnDialogMuted:hover { color: var(--text); }
+
+.btnDanger {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--error);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 8px 20px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btnDanger:hover { opacity: 0.88; }

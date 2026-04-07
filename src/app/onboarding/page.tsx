@@ -16,6 +16,7 @@ const CALIBRATION_REVIEWS = [
       'Thank you so much! We\'re thrilled the carbonara hit the spot — it\'s one of our favourites too. We look forward to welcoming you back soon.',
       'What a lovely thing to hear! The carbonara is a labour of love and we\'re glad it showed. Can\'t wait to have you back.',
       'That means the world to us — thank you. Our team takes real pride in making every visit feel personal. See you next time!',
+      'You\'ve made our chef\'s day! The carbonara is close to our hearts and knowing it landed well means everything. Hope to see you again soon.',
     ],
   },
   {
@@ -27,6 +28,7 @@ const CALIBRATION_REVIEWS = [
       'Thank you for the honest feedback — we\'re glad the pasta won you over! We know it can get lively in here, and it\'s something we\'re actively looking at. We hope to see you again.',
       'We appreciate you sharing that — the pasta team will be chuffed! Noise levels are on our radar and we\'re exploring some changes. Hope to welcome you back soon.',
       'Fair point on the noise — we hear you (pun intended). Glad the pasta delivered though! We\'re working on it and would love another chance.',
+      'Thanks for keeping it real with us. The pasta\'s our pride and joy, so glad that hit. We\'re taking the noise feedback seriously — some acoustic changes are in the works.',
     ],
   },
   {
@@ -38,6 +40,7 @@ const CALIBRATION_REVIEWS = [
       'We\'re sorry your experience fell short — that\'s not the standard we hold ourselves to. We\'d love the chance to make it right. If you\'re open to it, please reach out to us directly and your next visit is on us.',
       'That\'s not okay, and we apologise. A 45-minute wait and an overcooked steak is unacceptable. We\'ve flagged this with our kitchen and floor team. Please reach out — we\'d like to make it up to you.',
       'We dropped the ball here and we\'re sorry. No excuses — you deserved better. We\'re addressing this internally. If you\'d give us another shot, dinner is on us.',
+      'This isn\'t who we are, and we\'re genuinely sorry. We\'ve had a direct conversation with our kitchen and front-of-house team about this. We\'d love to invite you back — on the house — to show you what we\'re really about.',
     ],
   },
 ]
@@ -46,6 +49,13 @@ const HOURS = [
   '6:00 AM', '7:00 AM', '8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM',
   '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM',
   '6:00 PM', '7:00 PM', '8:00 PM', '9:00 PM',
+]
+
+const ANALYSIS_MESSAGES = [
+  'Connecting to your Google Business Profile...',
+  'Reading your review history...',
+  'Analyzing your response patterns...',
+  'Pre-filling your brand voice...',
 ]
 
 const LOADING_MESSAGES = [
@@ -62,24 +72,83 @@ function starsDisplay(count: number) {
 export default function OnboardingPage() {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(1)
+
+  // Analysis loading (after Google connect, before step 2)
+  const [analysisLoading, setAnalysisLoading] = useState(false)
+  const [analysisProgress, setAnalysisProgress] = useState(0)
+  const [analysisMsg, setAnalysisMsg] = useState(ANALYSIS_MESSAGES[0])
+
+  // Step 2: Brand voice fields (controlled, pre-filled after analysis)
+  const [restaurantName, setRestaurantName] = useState('')
+  const [brandVoice, setBrandVoice] = useState('')
+  const [personality, setPersonality] = useState('')
+  const [avoid, setAvoid] = useState('')
+  const [language, setLanguage] = useState('en')
+  const [autoLang, setAutoLang] = useState(true)
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+
+  // Calibration
   const [accepted, setAccepted] = useState<Set<string>>(new Set())
   const [rejections, setRejections] = useState<Record<string, number>>({})
   const [responseIdx, setResponseIdx] = useState<Record<string, number>>({})
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState<string | null>(null)
   const [calibLoading, setCalibLoading] = useState(false)
   const [calibReady, setCalibReady] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState(0)
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0])
+
+  // Digest
   const [digest, setDigest] = useState<'daily' | 'weekly'>('daily')
   const [hourIdx, setHourIdx] = useState(2)
   const [lowAlert, setLowAlert] = useState(false)
+
+  // File upload
   const [fileName, setFileName] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const goToStep = useCallback((n: number) => {
     setCurrentStep(n)
+    setValidationErrors({})
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
 
+  // Analysis loading effect (after Google connect)
+  useEffect(() => {
+    if (!analysisLoading) return
+
+    let msgIdx = 0
+    const msgInterval = setInterval(() => {
+      msgIdx++
+      if (msgIdx < ANALYSIS_MESSAGES.length) {
+        setAnalysisMsg(ANALYSIS_MESSAGES[msgIdx])
+      }
+    }, 1000)
+
+    const timers = [
+      setTimeout(() => setAnalysisProgress(20), 16),
+      setTimeout(() => setAnalysisProgress(45), 500),
+      setTimeout(() => setAnalysisProgress(70), 1500),
+      setTimeout(() => setAnalysisProgress(90), 2800),
+      setTimeout(() => setAnalysisProgress(100), 3500),
+      setTimeout(() => {
+        clearInterval(msgInterval)
+        setAnalysisLoading(false)
+        // Pre-fill fields from "analysis"
+        setRestaurantName('Cafe Luna')
+        setBrandVoice('We\'re a neighbourhood Italian spot that\'s been here since 2012. Regulars call us by name. We\'re warm but not cheesy, local but not provincial. We never say "we apologise for any inconvenience" because that\'s not how real people talk.')
+        setPersonality('warm, local, slightly cheeky')
+        setLanguage('en')
+        goToStep(2)
+      }, 4000),
+    ]
+
+    return () => {
+      clearInterval(msgInterval)
+      timers.forEach(clearTimeout)
+    }
+  }, [analysisLoading, goToStep])
+
+  // Calibration loading effect
   useEffect(() => {
     if (!calibLoading) return
 
@@ -110,11 +179,31 @@ export default function OnboardingPage() {
     }
   }, [calibLoading])
 
+  function startAnalysis() {
+    setAnalysisLoading(true)
+    setAnalysisProgress(0)
+    setAnalysisMsg(ANALYSIS_MESSAGES[0])
+  }
+
   function startCalibLoading() {
     setCalibLoading(true)
     setCalibReady(false)
     setLoadingProgress(0)
     setLoadingMsg(LOADING_MESSAGES[0])
+  }
+
+  function validateStep2(): boolean {
+    const errors: Record<string, string> = {}
+    if (!restaurantName.trim()) errors.restaurantName = 'This field is required.'
+    if (!brandVoice.trim()) errors.brandVoice = 'This field is required.'
+    setValidationErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  function handleStep2Continue() {
+    if (!validateStep2()) return
+    goToStep(3)
+    startCalibLoading()
   }
 
   function handleAccept(id: string) {
@@ -132,6 +221,23 @@ export default function OnboardingPage() {
     setRejections((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }))
   }
 
+  function handleFeedbackSubmit(id: string) {
+    const review = CALIBRATION_REVIEWS.find((r) => r.id === id)
+    if (!review) return
+    setFeedbackSubmitting(id)
+    setTimeout(() => {
+      // Advance to the next response variant (the "improved" one after feedback)
+      const currentIdx = responseIdx[id] ?? 0
+      const nextIdx = currentIdx + 1
+      if (nextIdx < review.responses.length) {
+        setResponseIdx((prev) => ({ ...prev, [id]: nextIdx }))
+      }
+      setFeedbackSubmitting(null)
+      // Reset rejection count so the feedback area hides
+      setRejections((prev) => ({ ...prev, [id]: 0 }))
+    }, 1500)
+  }
+
   function handleFile(file: File) {
     setFileName(file.name)
   }
@@ -140,6 +246,13 @@ export default function OnboardingPage() {
     e.preventDefault()
     e.currentTarget.classList.remove(styles.dragover)
     if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0])
+  }
+
+  function handleBack() {
+    if (currentStep === 2) goToStep(1)
+    else if (currentStep === 3) goToStep(2)
+    else if (currentStep === 4) goToStep(3)
+    else if (currentStep === 5) goToStep(4)
   }
 
   return (
@@ -162,8 +275,31 @@ export default function OnboardingPage() {
         })}
       </nav>
 
+      {/* Back navigation */}
+      {currentStep >= 2 && !analysisLoading && !calibLoading && (
+        <div className={styles.backNav}>
+          <button className={styles.backLink} onClick={handleBack}>
+            ← Back
+          </button>
+        </div>
+      )}
+
+      {/* Analysis loading (between step 1 and step 2) */}
+      {analysisLoading && (
+        <section className={styles.step} aria-label="Analyzing your profile">
+          <div className={styles.calibLoading} role="status" aria-live="polite">
+            <div className={styles.calibLoadingInner}>
+              <div className={styles.calibLoadingBar}>
+                <div className={styles.calibLoadingFill} style={{ width: `${analysisProgress}%` }} />
+              </div>
+              <p className={styles.calibLoadingText}>{analysisMsg}</p>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* STEP 1: Connect Google */}
-      {currentStep === 1 && (
+      {currentStep === 1 && !analysisLoading && (
         <section className={styles.step} aria-label="Step 1: Connect Google">
           <div className={styles.connectCard}>
             <div>
@@ -172,10 +308,10 @@ export default function OnboardingPage() {
                 Connect your Google Business Profile to get started — we&apos;ll handle responses from there.
               </p>
             </div>
-            <button className={`${styles.btn} ${styles.btnGoogle}`} onClick={() => goToStep(2)}>
+            <a href="/api/auth/google" className={`${styles.btn} ${styles.btnGoogle}`}>
               <span className={styles.googleMark} aria-hidden="true">G</span>
               Connect with Google
-            </button>
+            </a>
             <p className={styles.connectNote}>
               We request read access to your reviews and post permission for responses.<br />
               You can disconnect at any time from Settings.
@@ -185,16 +321,27 @@ export default function OnboardingPage() {
       )}
 
       {/* STEP 2: Brand voice */}
-      {currentStep === 2 && (
+      {currentStep === 2 && !analysisLoading && (
         <section className={styles.step} aria-label="Step 2: Describe your brand">
           <h1 className={styles.stepHeadline}>How does your restaurant talk?</h1>
           <p className={styles.stepSub}>
-            This shapes every response we write. Be as specific as you like — the more detail, the better the match.
+            We pre-filled this from your Google Business Profile and review history. Edit anything that doesn&apos;t feel right.
           </p>
 
           <div className={styles.field}>
             <label className={styles.fieldLabel} htmlFor="restaurant-name">Restaurant name</label>
-            <input type="text" id="restaurant-name" placeholder="e.g. Cafe Luna, The Roasted Vine" autoComplete="off" className={styles.textInput} />
+            <input
+              type="text"
+              id="restaurant-name"
+              placeholder="e.g. Cafe Luna, The Roasted Vine"
+              autoComplete="off"
+              className={`${styles.textInput} ${validationErrors.restaurantName ? styles.inputError : ''}`}
+              value={restaurantName}
+              onChange={(e) => { setRestaurantName(e.target.value); setValidationErrors((prev) => { const next = { ...prev }; delete next.restaurantName; return next }) }}
+            />
+            {validationErrors.restaurantName && (
+              <p className={styles.fieldError}>{validationErrors.restaurantName}</p>
+            )}
           </div>
 
           <div className={styles.field}>
@@ -205,8 +352,13 @@ export default function OnboardingPage() {
               placeholder="Describe your restaurant in your own words — how you talk to customers, phrases you always use, things you'd never say."
               autoComplete="off"
               spellCheck
-              className={styles.textarea}
+              className={`${styles.textarea} ${validationErrors.brandVoice ? styles.inputError : ''}`}
+              value={brandVoice}
+              onChange={(e) => { setBrandVoice(e.target.value); setValidationErrors((prev) => { const next = { ...prev }; delete next.brandVoice; return next }) }}
             />
+            {validationErrors.brandVoice && (
+              <p className={styles.fieldError}>{validationErrors.brandVoice}</p>
+            )}
           </div>
 
           <div className={styles.field}>
@@ -242,6 +394,29 @@ export default function OnboardingPage() {
             />
           </div>
 
+          {/* Multi-language toggle */}
+          <div className={styles.langToggleWrap}>
+            <div className={styles.alertToggleRow}>
+              <div className={styles.alertToggleInfo}>
+                <span className={styles.alertToggleLabel}>Respond in the language of each review</span>
+                <span className={styles.alertToggleDesc}>
+                  A Spanish review gets a Spanish reply. An English review gets an English reply.
+                </span>
+              </div>
+              <button
+                className={styles.toggle}
+                role="switch"
+                aria-checked={autoLang}
+                aria-label="Auto-detect review language"
+                onClick={() => setAutoLang(!autoLang)}
+              >
+                <span className={styles.toggleTrack}>
+                  <span className={styles.toggleThumb} />
+                </span>
+              </button>
+            </div>
+          </div>
+
           <p className={styles.optionalSectionLabel}>Optional details</p>
 
           <div className={styles.optionalFields}>
@@ -249,21 +424,42 @@ export default function OnboardingPage() {
               <label className={styles.fieldLabel} htmlFor="personality">
                 Personality <span className={styles.fieldOptional}>optional</span>
               </label>
-              <input type="text" id="personality" placeholder="e.g. warm, local, slightly cheeky" autoComplete="off" className={styles.textInput} />
+              <input
+                type="text"
+                id="personality"
+                placeholder="e.g. warm, local, slightly cheeky"
+                autoComplete="off"
+                className={styles.textInput}
+                value={personality}
+                onChange={(e) => setPersonality(e.target.value)}
+              />
             </div>
 
             <div className={styles.field}>
               <label className={styles.fieldLabel} htmlFor="avoid">
                 Phrases to avoid <span className={styles.fieldOptional}>optional</span>
               </label>
-              <input type="text" id="avoid" placeholder="e.g. We apologise for any inconvenience" autoComplete="off" className={styles.textInput} />
+              <input
+                type="text"
+                id="avoid"
+                placeholder="e.g. We apologise for any inconvenience"
+                autoComplete="off"
+                className={styles.textInput}
+                value={avoid}
+                onChange={(e) => setAvoid(e.target.value)}
+              />
             </div>
 
             <div className={styles.field}>
               <label className={styles.fieldLabel} htmlFor="language">
                 Primary language <span className={styles.fieldOptional}>optional</span>
               </label>
-              <select id="language" className={styles.select}>
+              <select
+                id="language"
+                className={styles.select}
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+              >
                 <option value="en">English</option>
                 <option value="es">Spanish</option>
                 <option value="fr">French</option>
@@ -279,7 +475,7 @@ export default function OnboardingPage() {
 
           <button
             className={`${styles.btn} ${styles.btnPrimary}`}
-            onClick={() => { goToStep(3); startCalibLoading() }}
+            onClick={handleStep2Continue}
           >
             Continue
           </button>
@@ -314,6 +510,7 @@ export default function OnboardingPage() {
                 const isAccepted = accepted.has(review.id)
                 const currentResponseIdx = responseIdx[review.id] ?? 0
                 const rejectionCount = rejections[review.id] ?? 0
+                const isSubmittingFeedback = feedbackSubmitting === review.id
                 const starsClass =
                   review.type === 'positive' ? styles.calibStarsPositive :
                   review.type === 'mixed' ? styles.calibStarsMixed :
@@ -353,10 +550,18 @@ export default function OnboardingPage() {
                           className={styles.calibFeedbackTextarea}
                           rows={2}
                           placeholder="Optional — skip if you prefer"
+                          disabled={isSubmittingFeedback}
                         />
+                        <button
+                          className={`${styles.btn} ${styles.btnFeedbackSubmit}`}
+                          onClick={() => handleFeedbackSubmit(review.id)}
+                          disabled={isSubmittingFeedback}
+                        >
+                          {isSubmittingFeedback ? 'Updating response...' : 'Submit feedback'}
+                        </button>
                       </div>
                     )}
-                    {!isAccepted && (
+                    {!isAccepted && !isSubmittingFeedback && (
                       <div className={styles.calibActions}>
                         <button className={`${styles.btn} ${styles.btnCalibOutline}`} onClick={() => handleAccept(review.id)}>
                           Looks good
@@ -478,7 +683,7 @@ export default function OnboardingPage() {
           <p className={styles.paymentSub}>
             You won&apos;t be charged until your trial ends. Cancel anytime.
           </p>
-          <p className={styles.paymentPrice}>$49 / month per location</p>
+          <p className={styles.paymentPrice}>$29/month</p>
 
           <div className={styles.paymentCardWrap}>
             <div className={styles.paymentCardRow}>

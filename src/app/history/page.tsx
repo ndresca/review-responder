@@ -8,6 +8,7 @@ import styles from './history.module.css'
 interface ReviewEntry {
   id: string
   reviewer: string
+  location: string
   stars: number
   datetime: string
   time: string
@@ -20,6 +21,7 @@ const MOCK_REVIEWS: ReviewEntry[] = [
   {
     id: '1',
     reviewer: 'Marco Testa',
+    location: 'Cafe Luna · Downtown',
     stars: 5,
     datetime: '2026-04-07T10:14:00',
     time: '2h ago',
@@ -32,6 +34,7 @@ const MOCK_REVIEWS: ReviewEntry[] = [
   {
     id: '2',
     reviewer: 'Priya Mehta',
+    location: 'Cafe Luna · Midtown',
     stars: 4,
     datetime: '2026-04-06T19:30:00',
     time: 'Yesterday',
@@ -44,6 +47,7 @@ const MOCK_REVIEWS: ReviewEntry[] = [
   {
     id: '3',
     reviewer: 'James Kirkwood',
+    location: 'Cafe Luna · Downtown',
     stars: 5,
     datetime: '2026-04-05T13:05:00',
     time: '2 days ago',
@@ -55,6 +59,7 @@ const MOCK_REVIEWS: ReviewEntry[] = [
   {
     id: '4',
     reviewer: 'Sophie Laurent',
+    location: 'Cafe Luna · Midtown',
     stars: 2,
     datetime: '2026-04-04T21:45:00',
     time: '3 days ago',
@@ -67,6 +72,7 @@ const MOCK_REVIEWS: ReviewEntry[] = [
   {
     id: '5',
     reviewer: 'David Chen',
+    location: 'Cafe Luna · Downtown',
     stars: 5,
     datetime: '2026-04-03T12:20:00',
     time: '4 days ago',
@@ -79,6 +85,7 @@ const MOCK_REVIEWS: ReviewEntry[] = [
   {
     id: '6',
     reviewer: 'Emma Rossi',
+    location: 'Cafe Luna · Midtown',
     stars: 3,
     datetime: '2026-04-02T18:10:00',
     time: '5 days ago',
@@ -91,6 +98,7 @@ const MOCK_REVIEWS: ReviewEntry[] = [
   {
     id: '7',
     reviewer: 'Alex Petrov',
+    location: 'Cafe Luna · Downtown',
     stars: 1,
     datetime: '2026-04-01T20:30:00',
     time: '6 days ago',
@@ -103,6 +111,7 @@ const MOCK_REVIEWS: ReviewEntry[] = [
   {
     id: '8',
     reviewer: 'Rachel Kim',
+    location: 'Cafe Luna · Midtown',
     stars: 4,
     datetime: '2026-03-31T14:00:00',
     time: '1 week ago',
@@ -151,7 +160,10 @@ export default function HistoryPage() {
             <div className={styles.cardTop}>
               <div className={styles.cardIdentity}>
                 <StarRating count={review.stars} />
-                <span className={styles.cardReviewer}>{review.reviewer}</span>
+                <div>
+                  <span className={styles.cardReviewer}>{review.reviewer}</span>
+                  <span className={styles.cardLocation}>{review.location}</span>
+                </div>
               </div>
               <div className={styles.cardMeta}>
                 <span

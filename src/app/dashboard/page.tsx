@@ -8,6 +8,7 @@ import styles from './dashboard.module.css'
 const REVIEWS = [
   {
     reviewer: 'Marco Testa',
+    location: 'Cafe Luna · Downtown',
     stars: 5,
     time: '2h ago',
     datetime: '2026-04-05T10:14:00',
@@ -18,6 +19,7 @@ const REVIEWS = [
   },
   {
     reviewer: 'Priya Mehta',
+    location: 'Cafe Luna · Midtown',
     stars: 4,
     time: 'Yesterday',
     datetime: '2026-04-04T19:30:00',
@@ -28,6 +30,7 @@ const REVIEWS = [
   },
   {
     reviewer: 'James Kirkwood',
+    location: 'Cafe Luna · Downtown',
     stars: 5,
     time: '2 days ago',
     datetime: '2026-04-03T13:05:00',
@@ -110,7 +113,10 @@ export default function DashboardPage() {
             className={`${styles.card} ${prefersReduced ? styles.noMotion : ''} ${visibleCards.has(i) ? styles.visible : ''}`}
           >
             <div className={styles.cardHeader}>
-              <span className={styles.cardReviewer}>{review.reviewer}</span>
+              <div>
+                <span className={styles.cardReviewer}>{review.reviewer}</span>
+                <span className={styles.cardLocation}>{review.location}</span>
+              </div>
               <div className={styles.cardMeta}>
                 <StarRating count={review.stars} />
                 <time className={styles.cardTime} dateTime={review.datetime}>

@@ -150,6 +150,14 @@
   text-overflow: ellipsis;
 }
 
+.cardLocation {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
 .cardMeta {
   display: flex;
   align-items: baseline;

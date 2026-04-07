@@ -95,7 +95,7 @@ export default function LandingPage() {
       {/* Pricing */}
       <section aria-label="Pricing">
         <div className={styles.pricingCard}>
-          <p className={styles.pricingAmount}>$49/month per location</p>
+          <p className={styles.pricingAmount}>$29/month — unlimited locations</p>
           <p className={styles.pricingSub}>14-day free trial, no credit card required.</p>
 
           <ul className={styles.pricingFeatures}>
