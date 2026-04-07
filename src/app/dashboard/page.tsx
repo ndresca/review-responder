@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import EditableResponse from '@/components/EditableResponse'
 import styles from './dashboard.module.css'
 
 const REVIEWS = [
@@ -48,7 +49,7 @@ function StarRating({ count }: { count: number }) {
 export default function DashboardPage() {
   const [active, setActive] = useState(true)
   const [prefersReduced, setPrefersReduced] = useState(false)
-  const cardRefs = useRef<(HTMLElement | null)[]>([])
+  const [visibleCards, setVisibleCards] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -57,8 +58,7 @@ export default function DashboardPage() {
 
     const timers = REVIEWS.map((_, i) =>
       setTimeout(() => {
-        const el = cardRefs.current[i]
-        if (el) el.classList.add(styles.visible)
+        setVisibleCards((prev) => new Set(prev).add(i))
       }, 80 + i * 150)
     )
     return () => timers.forEach(clearTimeout)
@@ -66,11 +66,12 @@ export default function DashboardPage() {
 
   return (
     <main className={styles.page} >
-      {/* Logo */}
+      {/* Nav */}
       <header className={styles.pageHeader}>
         <div className={styles.logoPlaceholder} aria-hidden="true">
           <span className={styles.logoPlaceholderText}>Your Logo</span>
         </div>
+        <Link href="/settings" className={styles.settingsLink}>Settings</Link>
       </header>
 
       {/* Status hero */}
@@ -94,8 +95,8 @@ export default function DashboardPage() {
         </h1>
 
         <p className={styles.weeklyCount}>
-          3 responses sent this week &nbsp;·&nbsp;
-          <Link href="#" aria-label="View response history">see history</Link>
+          3 responses sent this week<span className={styles.middot}>·</span>
+          <Link href="/history" aria-label="View response history">see full history →</Link>
         </p>
       </section>
 
@@ -106,8 +107,7 @@ export default function DashboardPage() {
         {REVIEWS.map((review, i) => (
           <article
             key={review.reviewer}
-            className={`${styles.card} ${prefersReduced ? styles.noMotion : ''}`}
-            ref={(el) => { cardRefs.current[i] = el }}
+            className={`${styles.card} ${prefersReduced ? styles.noMotion : ''} ${visibleCards.has(i) ? styles.visible : ''}`}
           >
             <div className={styles.cardHeader}>
               <span className={styles.cardReviewer}>{review.reviewer}</span>
@@ -119,10 +119,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <p className={styles.cardReviewText}>{review.reviewText}</p>
-            <div className={styles.cardResponse}>
-              <div className={styles.cardResponseTag}>Response sent</div>
-              <p className={styles.cardResponseBody}>{review.response}</p>
-            </div>
+            <EditableResponse response={review.response} tagLabel="Response sent" />
           </article>
         ))}
       </section>

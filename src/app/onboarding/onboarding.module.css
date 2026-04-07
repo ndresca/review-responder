@@ -118,22 +118,21 @@
 }
 .btnPrimary:hover { opacity: 0.88; }
 
-.btnSuccess {
-  background: rgba(61, 122, 90, 0.12);
-  color: var(--success);
-  font-size: 14px;
-  padding: 9px 18px;
-}
-.btnSuccess:hover { opacity: 0.8; }
-
-.btnGhost {
+.btnCalibOutline {
   background: transparent;
   color: var(--muted);
   border: 1px solid var(--border-med);
   font-size: 14px;
   padding: 9px 18px;
 }
-.btnGhost:hover { color: var(--text); border-color: var(--muted); }
+.btnCalibOutline:hover { color: var(--text); border-color: var(--muted); }
+
+.btnAmber {
+  background: var(--accent);
+  color: white;
+  width: 100%;
+}
+.btnAmber:hover { opacity: 0.88; }
 
 /* Google button */
 .btnGoogle {
@@ -388,7 +387,7 @@
 }
 
 .calibCardAccepted {
-  border-color: rgba(61, 122, 90, 0.45);
+  border-color: #3D7A5A;
   background: rgba(61, 122, 90, 0.04);
 }
 
@@ -670,4 +669,110 @@
   padding: 0 12px;
   line-height: 44px;
   user-select: none;
+}
+
+/* ── Calibration feedback textarea ──────────────────────────────────── */
+.calibFeedback {
+  margin-bottom: 14px;
+}
+
+.calibFeedbackLabel {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+
+.calibFeedbackTextarea {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-med);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  width: 100%;
+  resize: vertical;
+  min-height: 56px;
+  outline: none;
+  transition: border-color 0.15s;
+  line-height: 1.5;
+}
+
+.calibFeedbackTextarea:focus {
+  border-color: var(--accent);
+}
+
+.calibFeedbackTextarea::placeholder {
+  color: var(--muted);
+}
+
+/* ── STEP 5: Payment ────────────────────────────────────────────────── */
+.paymentHeadline {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 32px;
+  line-height: 1.2;
+  color: var(--text);
+  margin-bottom: 10px;
+  letter-spacing: -0.01em;
+}
+
+.paymentSub {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.paymentPrice {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text);
+  margin-bottom: 28px;
+}
+
+.paymentCardWrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.paymentCardRow {
+  display: flex;
+  gap: 8px;
+}
+
+.paymentCardInput {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-med);
+  border-radius: var(--radius-md);
+  padding: 12px 12px;
+  outline: none;
+  min-width: 0;
+  transition: border-color 0.15s;
+}
+
+.paymentCardInput:focus {
+  border-color: var(--accent);
+}
+
+.paymentCardInput::placeholder {
+  color: var(--muted);
+}
+
+.paymentSecured {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 12px;
 }

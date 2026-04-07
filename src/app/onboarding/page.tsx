@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import styles from './onboarding.module.css'
 
-const TOTAL_STEPS = 4
+const TOTAL_STEPS = 5
 
 const CALIBRATION_REVIEWS = [
   {
@@ -12,24 +12,33 @@ const CALIBRATION_REVIEWS = [
     stars: 5,
     type: 'positive' as const,
     review: '"Incredible carbonara. We\'ll definitely be back — the service was warm and attentive throughout."',
-    response:
+    responses: [
       'Thank you so much! We\'re thrilled the carbonara hit the spot — it\'s one of our favourites too. We look forward to welcoming you back soon.',
+      'What a lovely thing to hear! The carbonara is a labour of love and we\'re glad it showed. Can\'t wait to have you back.',
+      'That means the world to us — thank you. Our team takes real pride in making every visit feel personal. See you next time!',
+    ],
   },
   {
     id: 'calib-2',
     stars: 3,
     type: 'mixed' as const,
     review: '"Good food, a bit noisy. The pasta was excellent but we couldn\'t hear each other talk."',
-    response:
+    responses: [
       'Thank you for the honest feedback — we\'re glad the pasta won you over! We know it can get lively in here, and it\'s something we\'re actively looking at. We hope to see you again.',
+      'We appreciate you sharing that — the pasta team will be chuffed! Noise levels are on our radar and we\'re exploring some changes. Hope to welcome you back soon.',
+      'Fair point on the noise — we hear you (pun intended). Glad the pasta delivered though! We\'re working on it and would love another chance.',
+    ],
   },
   {
     id: 'calib-3',
     stars: 1,
     type: 'negative' as const,
     review: '"Waited 45 minutes for our food. When it arrived, the steak was overcooked and the waiter was dismissive about it."',
-    response:
+    responses: [
       'We\'re sorry your experience fell short — that\'s not the standard we hold ourselves to. We\'d love the chance to make it right. If you\'re open to it, please reach out to us directly and your next visit is on us.',
+      'That\'s not okay, and we apologise. A 45-minute wait and an overcooked steak is unacceptable. We\'ve flagged this with our kitchen and floor team. Please reach out — we\'d like to make it up to you.',
+      'We dropped the ball here and we\'re sorry. No excuses — you deserved better. We\'re addressing this internally. If you\'d give us another shot, dinner is on us.',
+    ],
   },
 ]
 
@@ -54,6 +63,8 @@ export default function OnboardingPage() {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(1)
   const [accepted, setAccepted] = useState<Set<string>>(new Set())
+  const [rejections, setRejections] = useState<Record<string, number>>({})
+  const [responseIdx, setResponseIdx] = useState<Record<string, number>>({})
   const [calibLoading, setCalibLoading] = useState(false)
   const [calibReady, setCalibReady] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState(0)
@@ -111,11 +122,14 @@ export default function OnboardingPage() {
   }
 
   function handleReject(id: string) {
-    setAccepted((prev) => {
-      const next = new Set(prev)
-      next.delete(id)
-      return next
-    })
+    const review = CALIBRATION_REVIEWS.find((r) => r.id === id)
+    if (!review) return
+    const currentIdx = responseIdx[id] ?? 0
+    const nextIdx = currentIdx + 1
+    if (nextIdx < review.responses.length) {
+      setResponseIdx((prev) => ({ ...prev, [id]: nextIdx }))
+    }
+    setRejections((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }))
   }
 
   function handleFile(file: File) {
@@ -298,6 +312,8 @@ export default function OnboardingPage() {
 
               {CALIBRATION_REVIEWS.map((review) => {
                 const isAccepted = accepted.has(review.id)
+                const currentResponseIdx = responseIdx[review.id] ?? 0
+                const rejectionCount = rejections[review.id] ?? 0
                 const starsClass =
                   review.type === 'positive' ? styles.calibStarsPositive :
                   review.type === 'mixed' ? styles.calibStarsMixed :
@@ -316,23 +332,40 @@ export default function OnboardingPage() {
                       <span className={`${styles.calibTypeBadge} ${badgeClass}`}>
                         {review.type.charAt(0).toUpperCase() + review.type.slice(1)}
                       </span>
-                      <span className={styles.calibAcceptedBadge} style={{ opacity: isAccepted ? 1 : 0 }} aria-hidden="true">
-                        ✓ Accepted
-                      </span>
+                      {isAccepted && (
+                        <span className={styles.calibAcceptedBadge} aria-hidden="true">
+                          ✓ Accepted
+                        </span>
+                      )}
                     </div>
                     <p className={styles.calibReview}>{review.review}</p>
                     <div className={styles.calibResponseWrap}>
                       <div className={styles.calibResponseTag}>AI response</div>
-                      <p className={styles.calibResponseBody}>{review.response}</p>
+                      <p className={styles.calibResponseBody}>{review.responses[currentResponseIdx]}</p>
                     </div>
-                    <div className={styles.calibActions}>
-                      <button className={`${styles.btn} ${styles.btnSuccess}`} onClick={() => handleAccept(review.id)}>
-                        Looks good
-                      </button>
-                      <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => handleReject(review.id)}>
-                        Not quite
-                      </button>
-                    </div>
+                    {rejectionCount >= 2 && !isAccepted && (
+                      <div className={styles.calibFeedback}>
+                        <label className={styles.calibFeedbackLabel} htmlFor={`feedback-${review.id}`}>
+                          What didn&apos;t feel right? The more you tell us, the better we&apos;ll match your voice.
+                        </label>
+                        <textarea
+                          id={`feedback-${review.id}`}
+                          className={styles.calibFeedbackTextarea}
+                          rows={2}
+                          placeholder="Optional — skip if you prefer"
+                        />
+                      </div>
+                    )}
+                    {!isAccepted && (
+                      <div className={styles.calibActions}>
+                        <button className={`${styles.btn} ${styles.btnCalibOutline}`} onClick={() => handleAccept(review.id)}>
+                          Looks good
+                        </button>
+                        <button className={`${styles.btn} ${styles.btnCalibOutline}`} onClick={() => handleReject(review.id)}>
+                          Not quite
+                        </button>
+                      </div>
+                    )}
                   </article>
                 )
               })}
@@ -431,10 +464,58 @@ export default function OnboardingPage() {
 
           <button
             className={`${styles.btn} ${styles.btnPrimary}`}
+            onClick={() => goToStep(5)}
+          >
+            Continue
+          </button>
+        </section>
+      )}
+
+      {/* STEP 5: Payment */}
+      {currentStep === 5 && (
+        <section className={styles.step} aria-label="Step 5: Payment">
+          <h1 className={styles.paymentHeadline}>Start your 14-day free trial.</h1>
+          <p className={styles.paymentSub}>
+            You won&apos;t be charged until your trial ends. Cancel anytime.
+          </p>
+          <p className={styles.paymentPrice}>$49 / month per location</p>
+
+          <div className={styles.paymentCardWrap}>
+            <div className={styles.paymentCardRow}>
+              <input
+                type="text"
+                className={styles.paymentCardInput}
+                placeholder="1234 5678 9012 3456"
+                aria-label="Card number"
+                style={{ flex: 2 }}
+                readOnly
+              />
+              <input
+                type="text"
+                className={styles.paymentCardInput}
+                placeholder="MM / YY"
+                aria-label="Expiry date"
+                style={{ flex: 1 }}
+                readOnly
+              />
+              <input
+                type="text"
+                className={styles.paymentCardInput}
+                placeholder="CVC"
+                aria-label="CVC"
+                style={{ flex: 0.7 }}
+                readOnly
+              />
+            </div>
+          </div>
+
+          <button
+            className={`${styles.btn} ${styles.btnAmber}`}
             onClick={() => router.push('/dashboard')}
           >
-            Go Live
+            Start free trial
           </button>
+          <p className={styles.paymentSecured}>Secured by Stripe</p>
         </section>
       )}
     </main>
