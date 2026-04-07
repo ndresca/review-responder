@@ -20,8 +20,12 @@ src/
 │   │   ├── auth/google/route.ts           # GET — initiates Google OAuth, sets state cookie
 │   │   ├── auth/google/callback/route.ts  # GET — exchanges code, creates locations + brand_voices
 │   │   └── cron/route.ts                  # GET /api/cron — Vercel cron handler
-│   ├── layout.tsx
-│   └── page.tsx
+│   ├── dashboard/page.tsx            # Dashboard — status hero, activity feed, auto-reply toggle
+│   ├── onboarding/page.tsx           # Onboarding — 4-step wizard (connect, voice, calibrate, digest)
+│   ├── settings/page.tsx             # Settings — location, brand voice, notifications, danger zone
+│   ├── globals.css                   # Global design tokens from DESIGN.md
+│   ├── layout.tsx                    # Root layout with Google Fonts
+│   └── page.tsx                      # Landing page — hero, steps, testimonials, pricing
 ├── lib/
 │   ├── crypto.ts              # AES-256-GCM encrypt/decrypt (OAUTH_ENCRYPTION_KEY)
 │   ├── crypto.test.ts         # 7 unit tests for crypto
