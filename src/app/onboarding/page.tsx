@@ -699,38 +699,23 @@ export default function OnboardingPage() {
           </p>
           <p className={styles.paymentPrice}>$29/month</p>
 
-          <div className={styles.paymentCardWrap}>
-            <div className={styles.paymentCardRow}>
-              <input
-                type="text"
-                className={styles.paymentCardInput}
-                placeholder="1234 5678 9012 3456"
-                aria-label="Card number"
-                style={{ flex: 2 }}
-                readOnly
-              />
-              <input
-                type="text"
-                className={styles.paymentCardInput}
-                placeholder="MM / YY"
-                aria-label="Expiry date"
-                style={{ flex: 1 }}
-                readOnly
-              />
-              <input
-                type="text"
-                className={styles.paymentCardInput}
-                placeholder="CVC"
-                aria-label="CVC"
-                style={{ flex: 0.7 }}
-                readOnly
-              />
-            </div>
-          </div>
-
           <button
             className={`${styles.btn} ${styles.btnAmber}`}
-            onClick={() => router.push('/dashboard')}
+            onClick={async () => {
+              try {
+                const res = await fetch('/api/stripe/checkout', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ locationId: 'TODO_FROM_SESSION' }),
+                })
+                const data = await res.json()
+                if (data.url) {
+                  window.location.href = data.url
+                }
+              } catch (err) {
+                console.error('Checkout error:', err)
+              }
+            }}
           >
             Start free trial
           </button>

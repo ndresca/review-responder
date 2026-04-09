@@ -11,20 +11,21 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.49.4",
     "next": "^15.3.0",
+    "openai": "^4.97.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@supabase/supabase-js": "^2.49.4",
-    "@supabase/ssr": "^0.6.1",
-    "openai": "^4.97.0",
-    "resend": "^4.5.1"
+    "resend": "^4.5.1",
+    "stripe": "^22.0.1"
   },
   "devDependencies": {
-    "typescript": "^5.8.3",
     "@types/node": "^22.14.0",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
-    "vitest": "^3.1.1",
-    "@vitejs/plugin-react": "^4.4.1"
+    "@vitejs/plugin-react": "^4.4.1",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.1"
   }
 }

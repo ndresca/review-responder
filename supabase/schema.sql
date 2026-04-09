@@ -214,7 +214,36 @@ create policy "owners can view responses for their locations"
     )
   );
 
--- ─── 8. notification_preferences ─────────────────────────────
+-- ─── 8. subscriptions ──────────────────────────────────────────
+
+create table subscriptions (
+  id                       uuid primary key default gen_random_uuid(),
+  location_id              uuid not null references locations(id) on delete cascade unique,
+  stripe_customer_id       text not null,
+  stripe_subscription_id   text not null,
+  status                   text not null default 'trialing'
+                           check (status in ('trialing', 'active', 'past_due', 'canceled', 'unpaid')),
+  current_period_end       timestamptz,
+  created_at               timestamptz not null default now()
+);
+
+create index subscriptions_location_id_idx on subscriptions(location_id);
+create index subscriptions_status_idx      on subscriptions(status);
+
+alter table subscriptions enable row level security;
+
+create policy "owners can view their own subscriptions"
+  on subscriptions
+  for all
+  using (
+    exists (
+      select 1 from locations
+      where locations.id = subscriptions.location_id
+        and locations.owner_id = auth.uid()
+    )
+  );
+
+-- ─── 9. notification_preferences ─────────────────────────────
 
 create table notification_preferences (
   id                uuid primary key default gen_random_uuid(),

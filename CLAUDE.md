@@ -19,9 +19,11 @@ src/
 │   ├── api/
 │   │   ├── auth/google/route.ts           # GET — initiates Google OAuth, sets state cookie
 │   │   ├── auth/google/callback/route.ts  # GET — exchanges code, creates locations + brand_voices
-│   │   └── cron/route.ts                  # GET /api/cron — Vercel cron handler
+│   │   ├── cron/route.ts                  # GET /api/cron — Vercel cron handler
+│   │   ├── stripe/checkout/route.ts       # POST — creates Stripe checkout session
+│   │   └── stripe/webhook/route.ts        # POST — handles Stripe webhook events
 │   ├── dashboard/page.tsx            # Dashboard — status hero, activity feed, auto-reply toggle
-│   ├── onboarding/page.tsx           # Onboarding — 4-step wizard (connect, voice, calibrate, digest)
+│   ├── onboarding/page.tsx           # Onboarding — 5-step wizard (connect, voice, calibrate, digest, payment)
 │   ├── settings/page.tsx             # Settings — location, brand voice, notifications, danger zone
 │   ├── globals.css                   # Global design tokens from DESIGN.md
 │   ├── layout.tsx                    # Root layout with Google Fonts
@@ -44,7 +46,7 @@ vercel.json                    # Cron schedule: /api/cron every 15 minutes
 
 ## Environment variables
 
-See `.env.example`. Required for cron jobs: `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `OAUTH_ENCRYPTION_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `CRON_SECRET`. OAuth flow also needs `GOOGLE_REDIRECT_URI`.
+See `.env.example`. Required for cron jobs: `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `OAUTH_ENCRYPTION_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `CRON_SECRET`. OAuth flow also needs `GOOGLE_REDIRECT_URI`. Stripe integration requires `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, and `STRIPE_WEBHOOK_SECRET`.
 
 ## Design System
 Always read DESIGN.md before making any visual or UI decisions.
