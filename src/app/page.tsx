@@ -125,10 +125,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className={styles.siteFooter}>
-        Autoplier · Made for restaurant owners ·{' '}
-        <a href="mailto:contact@autoplier.com">contact@autoplier.com</a>
-        {' · '}
-        <Link href="/privacy">Privacy</Link>
+        Autoplier · <a href="mailto:contact@autoplier.com">contact@autoplier.com</a> · <Link href="/privacy">Privacy</Link>
       </footer>
     </main>
   )
