@@ -348,43 +348,40 @@ export async function GET(request: Request): Promise<NextResponse> {
     return redirectError('user_creation')
   }
 
-  // ── 3. Fetch GBP accounts and locations ────────────────────────────────────
-
-  let allLocations: GbpLocation[]
+  // ── 3. Fetch GBP accounts and locations (best-effort) ───────────────────────
+  // GBP API access may not be approved yet — don't block onboarding if it fails.
+  // Locations will be synced separately once access is granted.
 
   try {
     const accounts = await listAccounts(accessToken)
-    if (accounts.length === 0) return redirectError('no_gbp_accounts')
 
-    const locationLists = await Promise.all(
-      accounts.map(account => listLocations(account.name, accessToken)),
-    )
-    allLocations = locationLists.flat()
-  } catch (err) {
-    console.error('GBP fetch error:', err)
-    return redirectError('gbp_fetch')
-  }
-
-  if (allLocations.length === 0) return redirectError('no_gbp_locations')
-
-  // ── 4. Persist locations, brand voices, and tokens ─────────────────────────
-
-  try {
-    for (const gbpLocation of allLocations) {
-      const locationId = await upsertLocation(
-        supabase,
-        gbpLocation.name,
-        gbpLocation.locationName,
-        ownerId,
+    if (accounts.length > 0) {
+      const locationLists = await Promise.all(
+        accounts.map(account => listLocations(account.name, accessToken)),
       )
-      await Promise.all([
-        ensureBrandVoice(supabase, locationId),
-        upsertOAuthTokens(supabase, locationId, accessToken, refreshToken, expiresAt),
-      ])
+      const allLocations = locationLists.flat()
+
+      if (allLocations.length > 0) {
+        for (const gbpLocation of allLocations) {
+          const locationId = await upsertLocation(
+            supabase,
+            gbpLocation.name,
+            gbpLocation.locationName,
+            ownerId,
+          )
+          await Promise.all([
+            ensureBrandVoice(supabase, locationId),
+            upsertOAuthTokens(supabase, locationId, accessToken, refreshToken, expiresAt),
+          ])
+        }
+      } else {
+        console.warn('GBP: accounts found but no locations — skipping location sync')
+      }
+    } else {
+      console.warn('GBP: no accounts found — skipping location sync')
     }
   } catch (err) {
-    console.error('DB write error:', err)
-    return redirectError('db_write')
+    console.warn('GBP fetch/sync skipped — API may not be approved yet:', err)
   }
 
   // ── 5. Update Google profile on user metadata (covers existing users) ─────
