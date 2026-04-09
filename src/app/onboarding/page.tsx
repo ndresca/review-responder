@@ -323,6 +323,13 @@ export default function OnboardingPage() {
               We request read access to your reviews and post permission for responses.<br />
               You can disconnect at any time from Settings.
             </p>
+            {/* TODO: remove before launch */}
+            <button
+              className={styles.skipLink}
+              onClick={() => goToStep(2)}
+            >
+              Skip for now
+            </button>
           </div>
         </section>
       )}

@@ -849,3 +849,16 @@
   text-align: center;
   margin-top: 12px;
 }
+
+/* TODO: remove before launch */
+.skipLink {
+  background: none;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  margin-top: 16px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
