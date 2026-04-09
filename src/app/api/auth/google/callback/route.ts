@@ -213,8 +213,10 @@ export async function GET(request: Request): Promise<NextResponse> {
   const appOrigin = new URL(request.url).origin
   const searchParams = new URL(request.url).searchParams
 
-  const redirectError = (reason: string) =>
-    NextResponse.redirect(`${appOrigin}/error?reason=${encodeURIComponent(reason)}`)
+  const redirectError = (reason: string) => {
+    console.error('OAuth callback error:', reason)
+    return NextResponse.redirect(`${appOrigin}/error?reason=${encodeURIComponent(reason)}`)
+  }
 
   // ── 0. Rate limit ──────────────────────────────────────────────────────────
 
