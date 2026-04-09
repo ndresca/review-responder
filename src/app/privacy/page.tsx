@@ -10,7 +10,7 @@ export default function PrivacyPage() {
     <main className={styles.page}>
       <header className={styles.header}>
         <Link href="/" className={styles.backLink}>
-          ← Back
+          ← Landing
         </Link>
       </header>
 
@@ -105,11 +105,6 @@ export default function PrivacyPage() {
         </p>
       </section>
 
-      <footer className={styles.footer}>
-        <Link href="/" className={styles.footerLink}>
-          ← Back to Autoplier
-        </Link>
-      </footer>
     </main>
   )
 }
