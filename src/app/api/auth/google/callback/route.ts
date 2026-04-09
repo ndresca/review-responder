@@ -229,12 +229,9 @@ export async function GET(request: Request): Promise<NextResponse> {
   // ── 1. Read and validate state cookie ──────────────────────────────────────
 
   const cookieStore = await cookies()
-  const stateCookie = cookieStore.get(STATE_COOKIE)?.value
+  const storedNonce = cookieStore.get(STATE_COOKIE)?.value
 
-  if (!stateCookie) return redirectError('missing_state')
-
-  const [storedNonce, ownerId] = stateCookie.split(':')
-  if (!storedNonce || !ownerId) return redirectError('malformed_state')
+  if (!storedNonce) return redirectError('missing_state')
 
   const stateParam = searchParams.get('state')
   if (!stateParam || stateParam !== storedNonce) return redirectError('state_mismatch')
@@ -314,6 +311,41 @@ export async function GET(request: Request): Promise<NextResponse> {
     return redirectError('userinfo_fetch')
   }
 
+  // ── 2c. Create or find Supabase user from Google profile ───────────────────
+
+  const supabase = buildSupabase()
+  let ownerId: string
+
+  try {
+    // Try to find existing user by email
+    const { data: existingUsers } = await supabase.auth.admin.listUsers()
+    const existingUser = existingUsers?.users?.find(u => u.email === googleProfile.email)
+
+    if (existingUser) {
+      ownerId = existingUser.id
+    } else {
+      // Create a new user with their Google profile
+      const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
+        email: googleProfile.email,
+        email_confirm: true,
+        user_metadata: {
+          google_id: googleProfile.sub,
+          google_email: googleProfile.email,
+          google_name: googleProfile.name ?? null,
+          google_picture: googleProfile.picture ?? null,
+        },
+      })
+      if (createErr || !newUser.user) {
+        console.error('user creation failed:', createErr)
+        return redirectError('user_creation')
+      }
+      ownerId = newUser.user.id
+    }
+  } catch (err) {
+    console.error('user lookup/creation error:', err)
+    return redirectError('user_creation')
+  }
+
   // ── 3. Fetch GBP accounts and locations ────────────────────────────────────
 
   let allLocations: GbpLocation[]
@@ -335,8 +367,6 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   // ── 4. Persist locations, brand voices, and tokens ─────────────────────────
 
-  const supabase = buildSupabase()
-
   try {
     for (const gbpLocation of allLocations) {
       const locationId = await upsertLocation(
@@ -355,7 +385,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     return redirectError('db_write')
   }
 
-  // ── 5. Store Google profile on user metadata ──────────────────────────────
+  // ── 5. Update Google profile on user metadata (covers existing users) ─────
 
   await supabase.auth.admin.updateUserById(ownerId, {
     user_metadata: {
@@ -366,14 +396,27 @@ export async function GET(request: Request): Promise<NextResponse> {
     },
   })
 
-  // ── 6. Clear state cookie and redirect to onboarding step 2 ──────────────
+  // ── 6. Set session cookie, clear state cookie, redirect ─────────────────
 
   const response = NextResponse.redirect(`${appOrigin}/onboarding?step=2`)
+
+  // Set a lightweight session cookie so the client knows who's logged in.
+  // The cron/service-role paths use SUPABASE_SERVICE_ROLE_KEY directly;
+  // this cookie is only for client-side session awareness.
+  response.cookies.set('autoplier_session', ownerId, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 60 * 60 * 24 * 30, // 30 days
+    path: '/',
+  })
+
   response.cookies.set(STATE_COOKIE, '', {
     httpOnly: true,
     sameSite: 'lax',
     maxAge: 0,
     path: '/api/auth/google',
   })
+
   return response
 }
