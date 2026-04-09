@@ -30,6 +30,11 @@ function getResend() {
   return _resend
 }
 
+// ─── Supabase query result helper (no generated types) ───────────────────────
+
+type SbResult<T> = { data: T[] | null; error: { message: string } | null }
+type SbSingleResult<T> = { data: T | null; error: { message: string } | null }
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type DigestData = {
@@ -115,7 +120,7 @@ export async function buildDigest(
     .eq('location_id', locationId)
     .eq('status', 'posted')
     .gte('posted_at', startIso)
-    .lte('posted_at', endIso)
+    .lte('posted_at', endIso) as unknown as SbResult<{ review_id: string }>
 
   if (postedErr) throw new Error(`buildDigest posted: ${postedErr.message}`)
 
@@ -127,7 +132,7 @@ export async function buildDigest(
     .select('review_id, status, text')
     .eq('location_id', locationId)
     .in('status', ['failed', 'retrying', 'blocked_pending_regen'])
-    .limit(100)
+    .limit(100) as unknown as SbResult<{ review_id: string; status: string; text: string }>
 
   if (unresolvedErr) throw new Error(`buildDigest unresolved: ${unresolvedErr.message}`)
 
@@ -135,9 +140,9 @@ export async function buildDigest(
 
   // Needs-attention items: all unresolved failures with their draft text
   const needsAttention: NeedsAttentionItem[] = (unresolvedRows ?? []).map(r => ({
-    reviewId: r.review_id as string,
-    reason: r.status as 'failed' | 'retrying' | 'blocked_pending_regen',
-    draftText: r.text as string,
+    reviewId: r.review_id,
+    reason: r.status as NeedsAttentionItem['reason'],
+    draftText: r.text,
   }))
 
   // Reviews received in the period
@@ -146,19 +151,19 @@ export async function buildDigest(
     .select('rating, text')
     .eq('location_id', locationId)
     .gte('created_at', startIso)
-    .lte('created_at', endIso)
+    .lte('created_at', endIso) as unknown as SbResult<{ rating: number; text: string }>
 
   if (reviewsErr) throw new Error(`buildDigest reviews: ${reviewsErr.message}`)
 
   const allReviews = reviews ?? []
-  const negativeReviews = allReviews.filter(r => (r.rating as number) <= 3)
+  const negativeReviews = allReviews.filter(r => r.rating <= 3)
 
   // responseRate = responses posted / reviews received in period.
   // Using review count as denominator keeps the rate period-bounded and meaningful.
   const responseRate = allReviews.length === 0 ? 100 : Math.round((posted / allReviews.length) * 100)
 
   const complaintThemes = extractComplaintThemes(
-    negativeReviews.map(r => (r.text as string) ?? ''),
+    negativeReviews.map(r => r.text ?? ''),
   )
 
   return {
@@ -222,16 +227,19 @@ export async function sendDigest(locationId: string): Promise<void> {
     .from('notification_preferences')
     .select('digest_frequency, digest_day, digest_time, timezone, last_digest_sent_at')
     .eq('location_id', locationId)
-    .single()
+    .single() as unknown as SbSingleResult<{
+      digest_frequency: string; digest_day: number | null; digest_time: number;
+      timezone: string | null; last_digest_sent_at: string | null;
+    }>
 
   if (prefsErr || !prefs) {
     throw new Error(`sendDigest: no notification preferences for ${locationId}`)
   }
 
   const frequency  = prefs.digest_frequency as 'daily' | 'weekly'
-  const digestDay  = prefs.digest_day as number | null   // 0=Sun … 6=Sat
-  const digestHour = prefs.digest_time as number         // 0–23, hour in owner's timezone
-  const timezone   = (prefs.timezone as string) || 'UTC'
+  const digestDay  = prefs.digest_day       // 0=Sun … 6=Sat
+  const digestHour = prefs.digest_time      // 0–23, hour in owner's timezone
+  const timezone   = prefs.timezone || 'UTC'
 
   // Check whether today + current hour matches the schedule
   const now = new Date()
@@ -263,7 +271,7 @@ export async function sendDigest(locationId: string): Promise<void> {
   // Dedup: skip if we already sent a digest in the last 23 hours (daily) or 6 days (weekly).
   // This prevents the 4x-per-hour problem: cron fires at :00, :15, :30, :45 and all
   // four calls pass the hour check. Only the first one gets through.
-  const lastSent = prefs.last_digest_sent_at ? new Date(prefs.last_digest_sent_at as string) : null
+  const lastSent = prefs.last_digest_sent_at ? new Date(prefs.last_digest_sent_at) : null
   if (lastSent) {
     const hoursSinceLast = (now.getTime() - lastSent.getTime()) / (1000 * 60 * 60)
     const minGapHours = frequency === 'daily' ? 23 : 6 * 24
@@ -274,7 +282,7 @@ export async function sendDigest(locationId: string): Promise<void> {
   // rather than spam 4 copies. The next window will retry.
   const { error: stampErr } = await getSupabase()
     .from('notification_preferences')
-    .update({ last_digest_sent_at: now.toISOString() })
+    .update({ last_digest_sent_at: now.toISOString() } as never)
     .eq('location_id', locationId)
 
   if (stampErr) {
@@ -287,12 +295,12 @@ export async function sendDigest(locationId: string): Promise<void> {
     .from('locations')
     .select('owner_id')
     .eq('id', locationId)
-    .single()
+    .single() as unknown as SbSingleResult<{ owner_id: string }>
 
   if (locErr || !location) throw new Error(`sendDigest: location ${locationId} not found`)
 
   const { data: { user }, error: userErr } = await getSupabase().auth.admin.getUserById(
-    location.owner_id as string,
+    location.owner_id,
   )
   if (userErr || !user?.email) throw new Error(`sendDigest: owner email not found for ${locationId}`)
 
@@ -320,12 +328,12 @@ export async function sendFailureAlert(
     .from('locations')
     .select('owner_id')
     .eq('id', locationId)
-    .single()
+    .single() as unknown as SbSingleResult<{ owner_id: string }>
 
   if (locErr || !location) throw new Error(`sendFailureAlert: location ${locationId} not found`)
 
   const { data: { user }, error: userErr } = await getSupabase().auth.admin.getUserById(
-    location.owner_id as string,
+    location.owner_id,
   )
   if (userErr || !user?.email) throw new Error(`sendFailureAlert: owner email not found for ${locationId}`)
 
