@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { encrypt } from '@/lib/crypto'
 
 const OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+const USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo'
 const GBP_BASE = 'https://mybusiness.googleapis.com/v4'
 const STATE_COOKIE = 'oauth_state'
 
@@ -56,6 +57,13 @@ type GbpLocation = {
 type GbpLocationsPage = {
   locations?: GbpLocation[]
   nextPageToken?: string
+}
+
+type GoogleUserInfo = {
+  sub: string           // Google user ID
+  email: string
+  name?: string
+  picture?: string
 }
 
 type GbpErrorBody = {
@@ -289,6 +297,23 @@ export async function GET(request: Request): Promise<NextResponse> {
     return redirectError('token_exchange')
   }
 
+  // ── 2b. Fetch Google user profile ──────────────────────────────────────────
+
+  let googleProfile: GoogleUserInfo
+  try {
+    const userInfoRes = await fetch(USERINFO_URL, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!userInfoRes.ok) {
+      console.error('userinfo fetch failed:', userInfoRes.status)
+      return redirectError('userinfo_fetch')
+    }
+    googleProfile = (await userInfoRes.json()) as GoogleUserInfo
+  } catch (err) {
+    console.error('userinfo error:', err)
+    return redirectError('userinfo_fetch')
+  }
+
   // ── 3. Fetch GBP accounts and locations ────────────────────────────────────
 
   let allLocations: GbpLocation[]
@@ -330,9 +355,20 @@ export async function GET(request: Request): Promise<NextResponse> {
     return redirectError('db_write')
   }
 
-  // ── 5. Clear state cookie and redirect to onboarding ──────────────────────
+  // ── 5. Store Google profile on user metadata ──────────────────────────────
 
-  const response = NextResponse.redirect(`${appOrigin}/onboarding`)
+  await supabase.auth.admin.updateUserById(ownerId, {
+    user_metadata: {
+      google_id: googleProfile.sub,
+      google_email: googleProfile.email,
+      google_name: googleProfile.name ?? null,
+      google_picture: googleProfile.picture ?? null,
+    },
+  })
+
+  // ── 6. Clear state cookie and redirect to onboarding step 2 ──────────────
+
+  const response = NextResponse.redirect(`${appOrigin}/onboarding?step=2`)
   response.cookies.set(STATE_COOKIE, '', {
     httpOnly: true,
     sameSite: 'lax',

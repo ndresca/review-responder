@@ -1,4 +1,4 @@
-# review-responder
+# autoplier
 
 AI-powered review response tool for restaurants. Google-first MVP.
 

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to review-responder will be documented in this file.
+All notable changes to Autoplier will be documented in this file.
 
 ## [0.1.0.0] - 2026-04-06
 

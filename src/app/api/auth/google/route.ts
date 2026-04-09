@@ -4,7 +4,12 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
-const GBP_SCOPE = 'https://www.googleapis.com/auth/business.manage'
+const SCOPES = [
+  'https://www.googleapis.com/auth/business.manage',
+  'openid',
+  'email',
+  'profile',
+].join(' ')
 
 // State cookie stores "{nonce}:{userId}" so we know who to associate
 // GBP locations with when Google redirects back.
@@ -48,7 +53,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   authUrl.searchParams.set('client_id', clientId)
   authUrl.searchParams.set('redirect_uri', redirectUri)
   authUrl.searchParams.set('response_type', 'code')
-  authUrl.searchParams.set('scope', GBP_SCOPE)
+  authUrl.searchParams.set('scope', SCOPES)
   authUrl.searchParams.set('access_type', 'offline')   // required for refresh token
   authUrl.searchParams.set('prompt', 'consent')         // force refresh token even if previously granted
   authUrl.searchParams.set('state', nonce)

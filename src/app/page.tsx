@@ -15,7 +15,7 @@ export default function LandingPage() {
       <section className={styles.hero} aria-label="Hero">
         <h1 className={styles.heroHeadline}>Your Google reviews, handled.</h1>
         <p className={styles.heroSub}>
-          Review Responder reads every new review and posts a response in your voice,
+          Autoplier reads every new review and posts a response in your voice,
           automatically. No approval needed.
         </p>
         <Link href="/onboarding" className={styles.btnCta}>
@@ -125,8 +125,8 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className={styles.siteFooter}>
-        Review Responder · Made for restaurant owners ·{' '}
-        <a href="mailto:contact@reviewresponder.com">contact@reviewresponder.com</a>
+        Autoplier · Made for restaurant owners ·{' '}
+        <a href="mailto:contact@autoplier.com">contact@autoplier.com</a>
       </footer>
     </main>
   )

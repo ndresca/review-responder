@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Review Responder',
+  title: 'Autoplier',
   description: 'AI-powered review responses for restaurants. Set it up once, it runs forever.',
 }
 

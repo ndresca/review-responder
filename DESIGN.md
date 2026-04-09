@@ -1,4 +1,4 @@
-# Design System — review-responder
+# Design System — Autoplier
 
 ## Product Context
 - **What this is:** AI-powered tool that automatically responds to Google reviews for restaurants

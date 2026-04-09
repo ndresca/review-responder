@@ -1,5 +1,5 @@
 -- ============================================================
--- review-responder schema
+-- autoplier schema
 -- ============================================================
 -- Run against a fresh Supabase project via the SQL editor or
 -- the Supabase CLI: supabase db push

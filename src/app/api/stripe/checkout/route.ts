@@ -10,7 +10,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 async function getOrCreatePrice(): Promise<string> {
   // Check for existing product by metadata
   const products = await stripe.products.list({ limit: 1, active: true })
-  const existing = products.data.find(p => p.metadata.app === 'review-responder')
+  const existing = products.data.find(p => p.metadata.app === 'autoplier')
 
   if (existing) {
     const prices = await stripe.prices.list({ product: existing.id, active: true, limit: 1 })
@@ -18,9 +18,9 @@ async function getOrCreatePrice(): Promise<string> {
   }
 
   const product = await stripe.products.create({
-    name: 'Review Responder — Pro',
+    name: 'Autoplier — Pro',
     description: 'AI-powered review responses for your restaurant. $29/month.',
-    metadata: { app: 'review-responder' },
+    metadata: { app: 'autoplier' },
   })
 
   const price = await stripe.prices.create({
