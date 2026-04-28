@@ -211,7 +211,7 @@
 
 /* ── Logo placeholder ───────────────────────────────────────────────── */
 .pageHeader {
-  padding: 28px 0 0;
+  padding: 8px 0 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -235,7 +235,7 @@
 .logo {
   display: inline-flex;
   align-items: center;
-  gap: 0;
+  gap: -15px;
 }
 
 .logoImg {

@@ -6,7 +6,7 @@
 
 /* ── Logo ──────────────────────────────────────────────────────────── */
 .logoWrap {
-  padding: 32px 0 0;
+  padding: 12px 0 0;
   display: flex;
   justify-content: center;
 }
@@ -14,7 +14,7 @@
 .logo {
   display: inline-flex;
   align-items: center;
-  gap: 0;
+  gap: -15px;
 }
 
 .logoImg {
