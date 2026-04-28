@@ -6,8 +6,9 @@ export default function LandingPage() {
     <main className={styles.page}>
       {/* Logo */}
       <header className={styles.logoWrap}>
-        <div className={styles.logoPlaceholder} aria-hidden="true">
-          <span className={styles.logoText}>Your Logo</span>
+        <div className={styles.logo}>
+          <img src="/logo.png" alt="" className={styles.logoImg} />
+          <span className={styles.logoText}>Autoplier</span>
         </div>
       </header>
 
