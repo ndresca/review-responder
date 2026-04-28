@@ -8,27 +8,41 @@
 .logoWrap {
   padding: 12px 0 0;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .logo {
   display: inline-flex;
   align-items: center;
-  gap: -50px;
+  gap: 14px;
 }
 
 .logoImg {
-  height: 72px;
+  height: 48px;
   width: auto;
   display: block;
 }
 
 .logoText {
   font-family: 'EB Garamond', Georgia, serif;
-  font-size: 24px;
+  font-size: 32px;
   font-weight: 500;
   color: var(--text);
   line-height: 1;
+  position: relative;
+  padding-left: 14px;
+}
+
+.logoText::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
+  height: 32px;
+  background: currentColor;
+  opacity: 0.45;
 }
 
 /* ── Hero ──────────────────────────────────────────────────────────── */
