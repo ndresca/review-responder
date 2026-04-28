@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { LogoFull } from '@/components/LogoFull'
 import styles from './onboarding.module.css'
 
 const TOTAL_STEPS = 5
@@ -259,10 +260,7 @@ export default function OnboardingPage() {
     <main className={styles.page}>
       {/* Logo */}
       <header className={styles.pageHeader}>
-        <div className={styles.logo}>
-          <img src="/logo.png" alt="" className={styles.logoImg} />
-          <span className={styles.logoText}>Autoplier</span>
-        </div>
+        <LogoFull className={styles.logoImg} />
       </header>
 
       {/* Progress bar */}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import EditableResponse from '@/components/EditableResponse'
+import { LogoFull } from '@/components/LogoFull'
 import styles from './dashboard.module.css'
 
 const REVIEWS = [
@@ -71,10 +72,7 @@ export default function DashboardPage() {
     <main className={styles.page} >
       {/* Nav */}
       <header className={styles.pageHeader}>
-        <div className={styles.logo}>
-          <img src="/logo.png" alt="" className={styles.logoImg} />
-          <span className={styles.logoText}>Autoplier</span>
-        </div>
+        <LogoFull className={styles.logoImg} />
         <Link href="/settings" className={styles.settingsLink}>Settings</Link>
       </header>
 

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { LogoFull } from '@/components/LogoFull'
 import styles from './landing.module.css'
 
 export default function LandingPage() {
@@ -6,10 +7,7 @@ export default function LandingPage() {
     <main className={styles.page}>
       {/* Logo */}
       <header className={styles.logoWrap}>
-        <div className={styles.logo}>
-          <img src="/logo.png" alt="" className={styles.logoImg} />
-          <span className={styles.logoText}>Autoplier</span>
-        </div>
+        <LogoFull className={styles.logoImg} />
       </header>
 
       {/* Hero */}
