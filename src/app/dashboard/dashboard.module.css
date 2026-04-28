@@ -211,10 +211,10 @@
 
 /* ── Logo placeholder ───────────────────────────────────────────────── */
 .pageHeader {
-  padding: 8px 0 0;
+  padding: 28px 0 0;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   position: relative;
 }
 
@@ -232,38 +232,13 @@
 }
 .settingsLink:hover { color: var(--text); }
 
-.logo {
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
-}
-
 .logoImg {
-  height: 48px;
+  height: 80px;
   width: auto;
   display: block;
-}
-
-.logoText {
-  font-family: 'EB Garamond', Georgia, serif;
-  font-size: 32px;
-  font-weight: 500;
-  color: var(--text);
-  line-height: 1;
-  position: relative;
-  padding-left: 14px;
-}
-
-.logoText::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 1px;
-  height: 32px;
-  background: currentColor;
-  opacity: 0.45;
+  user-select: none;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
 }
 
 /* ── Footer pill button ─────────────────────────────────────────────── */
