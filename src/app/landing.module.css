@@ -14,11 +14,11 @@
 .logo {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
 }
 
 .logoImg {
-  height: 48px;
+  height: 64px;
   width: auto;
   display: block;
 }
