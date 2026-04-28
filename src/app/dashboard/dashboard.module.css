@@ -233,7 +233,7 @@
 .settingsLink:hover { color: var(--text); }
 
 .logoImg {
-  height: 240px;
+  height: 80px;
   width: auto;
   display: block;
   user-select: none;
