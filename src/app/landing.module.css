@@ -12,7 +12,7 @@
 }
 
 .logoImg {
-  height: 40px;
+  height: 35px;
   width: auto;
   display: block;
   user-select: none;
@@ -23,7 +23,7 @@
 /* ── Hero ──────────────────────────────────────────────────────────── */
 .hero {
   text-align: center;
-  padding: 56px 0 0;
+  padding: 61px 0 0;
 }
 
 .heroHeadline {
