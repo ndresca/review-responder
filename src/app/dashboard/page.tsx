@@ -71,8 +71,9 @@ export default function DashboardPage() {
     <main className={styles.page} >
       {/* Nav */}
       <header className={styles.pageHeader}>
-        <div className={styles.logoPlaceholder} aria-hidden="true">
-          <span className={styles.logoPlaceholderText}>Your Logo</span>
+        <div className={styles.logo}>
+          <img src="/logo.png" alt="" className={styles.logoImg} />
+          <span className={styles.logoText}>Autoplier</span>
         </div>
         <Link href="/settings" className={styles.settingsLink}>Settings</Link>
       </header>

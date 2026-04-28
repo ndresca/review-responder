@@ -259,8 +259,9 @@ export default function OnboardingPage() {
     <main className={styles.page}>
       {/* Logo */}
       <header className={styles.pageHeader}>
-        <div className={styles.logoPlaceholder} aria-hidden="true">
-          <span className={styles.logoPlaceholderText}>Your Logo</span>
+        <div className={styles.logo}>
+          <img src="/logo.png" alt="" className={styles.logoImg} />
+          <span className={styles.logoText}>Autoplier</span>
         </div>
       </header>
 
