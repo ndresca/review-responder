@@ -352,6 +352,12 @@ export async function GET(request: Request): Promise<NextResponse> {
   // GBP API access may not be approved yet — don't block onboarding if it fails.
   // Locations will be synced separately once access is granted.
 
+  // Track the first internal location UUID so we can pass it back to the
+  // onboarding page. The page's calibration POST needs a real locationId;
+  // multi-location accounts pick the first one for now (location switcher
+  // is a separate feature).
+  let firstLocationId: string | null = null
+
   try {
     const accounts = await listAccounts(accessToken)
 
@@ -369,6 +375,7 @@ export async function GET(request: Request): Promise<NextResponse> {
             gbpLocation.locationName,
             ownerId,
           )
+          if (!firstLocationId) firstLocationId = locationId
           await Promise.all([
             ensureBrandVoice(supabase, locationId),
             upsertOAuthTokens(supabase, locationId, accessToken, refreshToken, expiresAt),
@@ -397,7 +404,15 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   // ── 6. Set session cookie, clear state cookie, redirect ─────────────────
 
-  const response = NextResponse.redirect(`${appOrigin}/onboarding?step=2`)
+  // Pass the first location's internal UUID through so the onboarding page
+  // can fire the calibration POST against a real location. If GBP failed
+  // (no accounts, API not approved, etc.) we omit the param and the page
+  // surfaces a clear error instead of trying to POST against null.
+  const redirectUrl = new URL(`${appOrigin}/onboarding`)
+  redirectUrl.searchParams.set('step', '2')
+  if (firstLocationId) redirectUrl.searchParams.set('locationId', firstLocationId)
+
+  const response = NextResponse.redirect(redirectUrl.toString())
 
   // Set a lightweight session cookie so the client knows who's logged in.
   // The cron/service-role paths use SUPABASE_SERVICE_ROLE_KEY directly;

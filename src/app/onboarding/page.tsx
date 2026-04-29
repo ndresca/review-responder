@@ -323,8 +323,35 @@ export default function OnboardingPage() {
     startCalibLoading()
   }
 
-  function handleAccept(id: string) {
-    setAccepted((prev) => new Set(prev).add(id))
+  async function handleAccept(localId: string) {
+    if (cardLoading.has(localId)) return
+    const state = cardState[localId]
+    if (!state || !state.exampleId) return
+
+    // Optimistic — flip the card to accepted immediately. If the PATCH fails
+    // we roll back so the user can retry. We don't show a spinner here because
+    // accept is a passive ack: the server doesn't regen, just records the
+    // decision and bumps brand_voices.calibration_examples_accepted (which
+    // gates POST /api/onboarding/golive).
+    setAccepted((prev) => new Set(prev).add(localId))
+
+    try {
+      const res = await fetch('/api/onboarding/calibrate', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exampleId: state.exampleId, decision: 'accepted' }),
+      })
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        console.error(`PATCH (accept) failed: HTTP ${res.status}`, body)
+        setAccepted((prev) => { const next = new Set(prev); next.delete(localId); return next })
+      }
+      // On success the server updates brand_voices.calibration_examples_accepted
+      // automatically; we don't need to read newExample (accept doesn't regen).
+    } catch (err) {
+      console.error('PATCH (accept) threw:', err)
+      setAccepted((prev) => { const next = new Set(prev); next.delete(localId); return next })
+    }
   }
 
   // Helpers to add/remove a card from the in-flight set without mutating state.
