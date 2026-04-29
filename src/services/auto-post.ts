@@ -138,14 +138,19 @@ async function storeResponse(
   }
 }
 
-// Check if we already have a response for this review (posted, failed, or blocked).
-// Prevents double-processing if the cron fires twice or Vercel cold-starts overlap.
-async function hasExistingResponse(locationId: string, googleReviewId: string): Promise<boolean> {
+// Check if this review reached a terminal state (posted or failed). Those are
+// skipped on subsequent cron ticks. Reviews with status='blocked_pending_regen'
+// (or 'retrying') are intentionally NOT considered "final" — a transient
+// OpenAI/quality-gate failure on one tick should be re-attempted on the next.
+// storeResponse is idempotent on (location_id, review_id), so a retry that
+// succeeds will upsert the existing blocked row to status='posted'.
+async function hasFinalResponse(locationId: string, googleReviewId: string): Promise<boolean> {
   const { data } = await getSupabase()
     .from('responses_posted')
     .select('id')
     .eq('location_id', locationId)
     .eq('review_id', googleReviewId)
+    .in('status', ['posted', 'failed'])
     .maybeSingle()
 
   return data !== null
@@ -445,8 +450,10 @@ export async function processLocation(locationId: string): Promise<void> {
 
   // 8. Process each review sequentially — parallel would risk duplicate detection gaps
   for (const review of reviews) {
-    // Idempotency: skip reviews we've already processed (covers cron overlap, cold-start retries)
-    if (await hasExistingResponse(locationId, review.google_review_id)) continue
+    // Skip reviews that reached a terminal state (posted/failed). Reviews with
+    // status='blocked_pending_regen' fall through and get retried this tick —
+    // a transient OpenAI outage no longer permanently blocks a review.
+    if (await hasFinalResponse(locationId, review.google_review_id)) continue
 
     const posted = await processOneReview(
       locationId,
