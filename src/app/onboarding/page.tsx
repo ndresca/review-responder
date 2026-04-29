@@ -91,7 +91,19 @@ export default function OnboardingPage() {
   // Calibration
   const [accepted, setAccepted] = useState<Set<string>>(new Set())
   const [rejections, setRejections] = useState<Record<string, number>>({})
-  const [responseIdx, setResponseIdx] = useState<Record<string, number>>({})
+  // Per-card live state. exampleId is null until the calibration session POST
+  // populates it with a real DB UUID — until then PATCH calls will 404. After
+  // each successful regen we swap in newExample.id so subsequent interactions
+  // target the freshly inserted row.
+  const [cardState, setCardState] = useState<Record<string, {
+    exampleId: string | null
+    reviewSample: string
+    aiResponse: string
+  }>>(() => Object.fromEntries(CALIBRATION_REVIEWS.map(r => [r.id, {
+    exampleId: null,
+    reviewSample: r.review,
+    aiResponse: r.responses[0],
+  }])))
   // Per-card loading: card id → in-flight regeneration. Drives the spinner
   // overlay during reject and feedback-submit (both trigger PATCH on the
   // backend, which returns a freshly generated newExample to swap in).
@@ -223,41 +235,119 @@ export default function OnboardingPage() {
     })
   }
 
-  function handleReject(id: string) {
-    const review = CALIBRATION_REVIEWS.find((r) => r.id === id)
-    if (!review) return
-    if (cardLoading.has(id)) return  // ignore double-clicks while in flight
-
-    setCardLoadingFor(id, true)
-    // Mock the PATCH round-trip; the real backend regen takes 2–5s.
-    setTimeout(() => {
-      const currentIdx = responseIdx[id] ?? 0
-      const nextIdx = currentIdx + 1
-      if (nextIdx < review.responses.length) {
-        setResponseIdx((prev) => ({ ...prev, [id]: nextIdx }))
+  // PATCH /api/onboarding/calibrate. Returns the regenerated example or null
+  // on failure (network, 4xx, 5xx, server-side regen error). The endpoint is
+  // documented in src/app/api/onboarding/calibrate/route.ts — server-side
+  // regen failure is non-fatal: the original decision is still recorded and
+  // the response just contains newExample: null, which we treat the same as
+  // a network failure (leave the card unchanged, log, surface nothing to UI).
+  async function patchCalibrationExample(
+    exampleId: string,
+    decision: 'rejected' | 'edited',
+    editedText?: string,
+  ): Promise<{ id: string; review_sample: string; ai_response: string } | null> {
+    try {
+      const res = await fetch('/api/onboarding/calibrate', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          exampleId,
+          decision,
+          ...(editedText ? { editedText } : {}),
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        console.error(`PATCH /api/onboarding/calibrate failed: HTTP ${res.status}`, body)
+        return null
       }
-      setRejections((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }))
-      setCardLoadingFor(id, false)
-    }, 1200)
+      const data = (await res.json()) as {
+        newExample: {
+          id: string
+          scenario_type: string
+          review_sample: string
+          ai_response: string
+          decision: string
+        } | null
+      }
+      return data.newExample
+    } catch (err) {
+      console.error('PATCH /api/onboarding/calibrate threw:', err)
+      return null
+    }
   }
 
-  function handleFeedbackSubmit(id: string) {
-    const review = CALIBRATION_REVIEWS.find((r) => r.id === id)
-    if (!review) return
-    if (cardLoading.has(id)) return
+  // Apply a returned newExample to the card's live state.
+  function applyNewExample(
+    localId: string,
+    newExample: { id: string; review_sample: string; ai_response: string },
+  ) {
+    setCardState(prev => ({
+      ...prev,
+      [localId]: {
+        exampleId: newExample.id,
+        reviewSample: newExample.review_sample,
+        aiResponse: newExample.ai_response,
+      },
+    }))
+  }
 
-    setCardLoadingFor(id, true)
-    setTimeout(() => {
-      // Advance to the next response variant (the "improved" one after feedback)
-      const currentIdx = responseIdx[id] ?? 0
-      const nextIdx = currentIdx + 1
-      if (nextIdx < review.responses.length) {
-        setResponseIdx((prev) => ({ ...prev, [id]: nextIdx }))
+  async function handleReject(localId: string) {
+    if (cardLoading.has(localId)) return  // ignore double-clicks while in flight
+    const state = cardState[localId]
+    if (!state) return
+
+    setCardLoadingFor(localId, true)
+    try {
+      if (!state.exampleId) {
+        // Calibration session POST has not run yet — flag once per click so
+        // the dev/QA flow surfaces what's missing without breaking the UI.
+        console.warn(
+          `No real exampleId for card "${localId}" — POST /api/onboarding/calibrate has not been wired yet, so this PATCH will be skipped.`,
+        )
+      } else {
+        const newExample = await patchCalibrationExample(state.exampleId, 'rejected')
+        if (newExample) applyNewExample(localId, newExample)
+      }
+      // Bump rejection count regardless — the user's intent to reject stands
+      // even if the regen failed. Two rejections still surface the feedback area.
+      setRejections((prev) => ({ ...prev, [localId]: (prev[localId] ?? 0) + 1 }))
+    } finally {
+      setCardLoadingFor(localId, false)
+    }
+  }
+
+  async function handleFeedbackSubmit(localId: string) {
+    if (cardLoading.has(localId)) return
+    const state = cardState[localId]
+    if (!state) return
+
+    // Capture the typed feedback. The PATCH endpoint's editedText field expects
+    // the owner's edited version of the AI response, NOT free-form feedback —
+    // so passing this as editedText would semantically corrupt the calibration
+    // examples table. Until the API grows a feedback field, we log it and send
+    // a plain 'rejected' decision. The UX still works (card regenerates).
+    const feedbackEl = document.getElementById(`feedback-${localId}`) as HTMLTextAreaElement | null
+    const feedbackText = feedbackEl?.value.trim() ?? ''
+    if (feedbackText) {
+      console.info(`Captured feedback for "${localId}" (not transmitted — API has no feedback field):`, feedbackText)
+    }
+
+    setCardLoadingFor(localId, true)
+    try {
+      if (!state.exampleId) {
+        console.warn(
+          `No real exampleId for card "${localId}" — POST /api/onboarding/calibrate has not been wired yet, so this PATCH will be skipped.`,
+        )
+      } else {
+        const newExample = await patchCalibrationExample(state.exampleId, 'rejected')
+        if (newExample) applyNewExample(localId, newExample)
       }
       // Reset rejection count so the feedback area hides
-      setRejections((prev) => ({ ...prev, [id]: 0 }))
-      setCardLoadingFor(id, false)
-    }, 1500)
+      setRejections((prev) => ({ ...prev, [localId]: 0 }))
+    } finally {
+      setCardLoadingFor(localId, false)
+    }
   }
 
   function handleFile(file: File) {
@@ -549,7 +639,7 @@ export default function OnboardingPage() {
 
               {CALIBRATION_REVIEWS.map((review) => {
                 const isAccepted = accepted.has(review.id)
-                const currentResponseIdx = responseIdx[review.id] ?? 0
+                const live = cardState[review.id]  // current review_sample / ai_response, swapped after each regen
                 const rejectionCount = rejections[review.id] ?? 0
                 const isLoading = cardLoading.has(review.id)
                 const starsClass =
@@ -576,7 +666,7 @@ export default function OnboardingPage() {
                         </span>
                       )}
                     </div>
-                    <p className={styles.calibReview}>{review.review}</p>
+                    <p className={styles.calibReview}>{live.reviewSample}</p>
 
                     {isLoading ? (
                       <div className={styles.calibCardLoading} role="status" aria-live="polite">
@@ -587,7 +677,7 @@ export default function OnboardingPage() {
                       <>
                         <div className={styles.calibResponseWrap}>
                           <div className={styles.calibResponseTag}>AI response</div>
-                          <p className={styles.calibResponseBody}>{review.responses[currentResponseIdx]}</p>
+                          <p className={styles.calibResponseBody}>{live.aiResponse}</p>
                         </div>
                         {rejectionCount >= 2 && !isAccepted && (
                           <div className={styles.calibFeedback}>
