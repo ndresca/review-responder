@@ -416,6 +416,66 @@
   background: rgba(61, 122, 90, 0.04);
 }
 
+/* Full-screen-ish state shown while the calibration POST runs (8–25s).
+   Uses the same amber spinner as the per-card state for visual continuity. */
+.calibPageLoading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 96px 16px;
+  text-align: center;
+}
+
+.calibPageSpinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: calibSpin 0.8s linear infinite;
+}
+
+.calibPageLoadingText {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 300;
+  color: var(--text);
+  margin: 0;
+  animation: textPulse 2s ease-in-out infinite;
+}
+
+.calibPageLoadingSub {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+  max-width: 360px;
+  line-height: 1.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calibPageSpinner { animation-duration: 2.4s; }
+  .calibPageLoadingText { animation: none; }
+}
+
+.calibErrorWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 64px 16px;
+  text-align: center;
+}
+
+.calibErrorMsg {
+  font-size: 15px;
+  color: var(--text);
+  max-width: 420px;
+  line-height: 1.5;
+  margin: 0;
+}
+
 /* Per-card loading state — shown while the regen PATCH is in flight.
    Replaces the response + actions area; header (stars, badge) and review text
    stay visible above so the card keeps its identity and doesn't layout-shift. */

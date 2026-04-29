@@ -207,8 +207,9 @@ async function generateExample(
   brandVoice: BrandVoice,
   existingResponses: ExistingResponse[],
   scenario: ScenarioType,
+  ownerFeedback?: string,
 ): Promise<CalibrationOutput> {
-  const prompt = buildCalibrationPrompt(brandVoice, existingResponses, scenario)
+  const prompt = buildCalibrationPrompt(brandVoice, existingResponses, scenario, ownerFeedback)
 
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o',
@@ -360,12 +361,14 @@ export async function PATCH(request: Request): Promise<NextResponse> {
   let exampleId: string
   let decision: 'accepted' | 'rejected' | 'edited'
   let editedText: string | undefined
+  let feedbackText: string | undefined
 
   try {
     const body = (await request.json()) as {
       exampleId?: string
       decision?: string
       editedText?: string
+      feedbackText?: string
     }
 
     if (!body.exampleId) return NextResponse.json({ error: 'exampleId is required' }, { status: 400 })
@@ -379,6 +382,11 @@ export async function PATCH(request: Request): Promise<NextResponse> {
     exampleId = body.exampleId
     decision = body.decision as typeof decision
     editedText = body.editedText
+    // Optional free-form note from the owner about why the previous response
+    // missed the mark — flows into the regen prompt as an extra guideline.
+    // Cap at 500 chars to keep the prompt focused and prevent injection of
+    // arbitrarily large strings into the LLM call.
+    feedbackText = body.feedbackText?.trim().slice(0, 500) || undefined
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
@@ -486,6 +494,7 @@ export async function PATCH(request: Request): Promise<NextResponse> {
         location.google_location_id as string,
         example.session_id as string,
         example.scenario_type as ScenarioType,
+        feedbackText,
       )
     } catch (err) {
       // Non-fatal — log and return null. The decision write above succeeded.
@@ -506,6 +515,7 @@ async function regenerateExample(
   googleLocationId: string,
   sessionId: string,
   scenario: ScenarioType,
+  ownerFeedback?: string,
 ): Promise<{
   id: string
   scenario_type: ScenarioType
@@ -549,9 +559,10 @@ async function regenerateExample(
     console.warn('regenerateExample: fetchAllReviews failed (continuing without examples):', err)
   }
 
-  // Generate one new example for the requested scenario
+  // Generate one new example for the requested scenario, optionally guided by
+  // the owner's free-form feedback about what was wrong with the previous one.
   const openai = buildOpenAI()
-  const output = await generateExample(openai, brandVoice, existingResponses, scenario)
+  const output = await generateExample(openai, brandVoice, existingResponses, scenario, ownerFeedback)
 
   // Insert as a new pending row in the same session
   const { data: inserted, error: insertErr } = await supabase
