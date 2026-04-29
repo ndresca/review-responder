@@ -134,6 +134,11 @@ function OnboardingContent() {
   // overlay during reject and feedback-submit (both trigger PATCH on the
   // backend, which returns a freshly generated newExample to swap in).
   const [cardLoading, setCardLoading] = useState<Set<string>>(new Set())
+  // Inline-edit state. Only one card can be in edit mode at a time —
+  // editText holds the textarea value while the card is being edited.
+  // Cancel discards editText; Save PATCHes with decision='edited'.
+  const [editingCardId, setEditingCardId] = useState<string | null>(null)
+  const [editText, setEditText] = useState('')
   // Page-level calibration loading: drives the full-screen state while the
   // POST runs. POST generates 6 examples in parallel via OpenAI — typically
   // 8–25s of wall time — so this is a real wait, not a fake progress bar.
@@ -362,6 +367,71 @@ function OnboardingContent() {
     } catch (err) {
       console.error('PATCH (accept) threw:', err)
       setAccepted((prev) => { const next = new Set(prev); next.delete(localId); return next })
+    }
+  }
+
+  // ── Inline edit ────────────────────────────────────────────────────────
+  // Click Edit → response text becomes a textarea seeded with the current
+  // AI response. Cancel discards the edits and shows the original response
+  // again. Save PATCHes with decision='edited' and editedText, then on
+  // success the card flips to accepted state showing the user's edit (the
+  // server-side bump to brand_voices.calibration_examples_accepted means it
+  // counts toward the >=3 gate). The server also regenerates a newExample
+  // for the same scenario, but we discard it — the user committed to their
+  // version, swapping in a new pending card would be confusing.
+
+  function handleEditStart(localId: string) {
+    if (cardLoading.has(localId)) return
+    if (editingCardId) return  // one card at a time
+    const state = cardState[localId]
+    if (!state) return
+    setEditingCardId(localId)
+    setEditText(state.aiResponse)
+  }
+
+  function handleEditCancel() {
+    setEditingCardId(null)
+    setEditText('')
+  }
+
+  async function handleEditSave(localId: string) {
+    if (cardLoading.has(localId)) return
+    const state = cardState[localId]
+    if (!state || !state.exampleId) return
+    const trimmed = editText.trim()
+    if (!trimmed) return  // API rejects decision='edited' without editedText
+
+    // Exit the editor UI immediately — the spinner takes over via cardLoading.
+    setEditingCardId(null)
+    setCardLoadingFor(localId, true)
+
+    try {
+      const res = await fetch('/api/onboarding/calibrate', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          exampleId: state.exampleId,
+          decision: 'edited',
+          editedText: trimmed,
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        console.error(`PATCH (edit) failed: HTTP ${res.status}`, body)
+        return
+      }
+      // Persist the user's edit as the card's response and mark accepted.
+      // The newExample regen the server returns is intentionally ignored.
+      setCardState(prev => ({
+        ...prev,
+        [localId]: { ...prev[localId], aiResponse: trimmed },
+      }))
+      setAccepted(prev => new Set(prev).add(localId))
+    } catch (err) {
+      console.error('PATCH (edit) threw:', err)
+    } finally {
+      setCardLoadingFor(localId, false)
+      setEditText('')
     }
   }
 
@@ -865,6 +935,37 @@ function OnboardingContent() {
                         <span className={styles.calibSpinner} aria-hidden="true" />
                         <span className={styles.calibCardLoadingText}>Generating new response...</span>
                       </div>
+                    ) : editingCardId === cardId ? (
+                      // Inline editor — replaces response + actions. Cancel
+                      // discards changes and restores the original response.
+                      <div className={styles.calibEdit}>
+                        <label className={styles.calibFeedbackLabel} htmlFor={`edit-${cardId}`}>
+                          Edit the AI response — your version is what gets saved.
+                        </label>
+                        <textarea
+                          id={`edit-${cardId}`}
+                          className={styles.calibFeedbackTextarea}
+                          rows={4}
+                          value={editText}
+                          onChange={(e) => setEditText(e.target.value)}
+                          autoFocus
+                        />
+                        <div className={styles.calibEditActions}>
+                          <button
+                            className={`${styles.btn} ${styles.btnFeedbackSubmit}`}
+                            onClick={() => handleEditSave(cardId)}
+                            disabled={!editText.trim()}
+                          >
+                            Save
+                          </button>
+                          <button
+                            className={`${styles.btn} ${styles.btnCalibOutline}`}
+                            onClick={handleEditCancel}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
                     ) : rejectionCount >= 2 && !isAccepted ? (
                       // After two rejections, the AI response and Looks good /
                       // Not quite buttons hide and we surface the feedback
@@ -901,6 +1002,9 @@ function OnboardingContent() {
                             </button>
                             <button className={`${styles.btn} ${styles.btnCalibOutline}`} onClick={() => handleReject(cardId)}>
                               Not quite
+                            </button>
+                            <button className={`${styles.btn} ${styles.btnCalibOutline}`} onClick={() => handleEditStart(cardId)}>
+                              Edit
                             </button>
                           </div>
                         )}
