@@ -42,7 +42,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'locationId is required' }, { status: 400 })
     }
 
-    const origin = new URL(request.url).origin
+    // Pin to a canonical domain when configured so success/cancel URLs match
+    // the host Vercel actually serves on (and the host configured for Stripe
+    // webhooks / OAuth). Without this, a user who landed on apex vs www would
+    // get different redirect URLs, and the apex→www redirect can drop session
+    // cookies on the way back from Checkout.
+    const canonicalUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
+    const origin = canonicalUrl ?? new URL(request.url).origin
     const priceId = await getOrCreatePrice()
 
     const session = await stripe.checkout.sessions.create({
