@@ -416,6 +416,47 @@
   background: rgba(61, 122, 90, 0.04);
 }
 
+/* Per-card loading state — shown while the regen PATCH is in flight.
+   Replaces the response + actions area; header (stars, badge) and review text
+   stay visible above so the card keeps its identity and doesn't layout-shift. */
+.calibCardLoading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 16px;
+  margin-top: 12px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  min-height: 96px;
+}
+
+.calibSpinner {
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: calibSpin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.calibCardLoadingText {
+  font-size: 14px;
+  color: var(--muted);
+  font-family: var(--font-body);
+}
+
+@keyframes calibSpin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Keep motion present so users still know it's loading, but slow it down. */
+  .calibSpinner { animation-duration: 2.4s; }
+}
+
 .calibHeader {
   display: flex;
   align-items: center;

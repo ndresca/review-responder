@@ -92,7 +92,10 @@ export default function OnboardingPage() {
   const [accepted, setAccepted] = useState<Set<string>>(new Set())
   const [rejections, setRejections] = useState<Record<string, number>>({})
   const [responseIdx, setResponseIdx] = useState<Record<string, number>>({})
-  const [feedbackSubmitting, setFeedbackSubmitting] = useState<string | null>(null)
+  // Per-card loading: card id → in-flight regeneration. Drives the spinner
+  // overlay during reject and feedback-submit (both trigger PATCH on the
+  // backend, which returns a freshly generated newExample to swap in).
+  const [cardLoading, setCardLoading] = useState<Set<string>>(new Set())
   const [calibLoading, setCalibLoading] = useState(false)
   const [calibReady, setCalibReady] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState(0)
@@ -211,21 +214,39 @@ export default function OnboardingPage() {
     setAccepted((prev) => new Set(prev).add(id))
   }
 
+  // Helpers to add/remove a card from the in-flight set without mutating state.
+  function setCardLoadingFor(id: string, loading: boolean) {
+    setCardLoading((prev) => {
+      const next = new Set(prev)
+      if (loading) next.add(id); else next.delete(id)
+      return next
+    })
+  }
+
   function handleReject(id: string) {
     const review = CALIBRATION_REVIEWS.find((r) => r.id === id)
     if (!review) return
-    const currentIdx = responseIdx[id] ?? 0
-    const nextIdx = currentIdx + 1
-    if (nextIdx < review.responses.length) {
-      setResponseIdx((prev) => ({ ...prev, [id]: nextIdx }))
-    }
-    setRejections((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }))
+    if (cardLoading.has(id)) return  // ignore double-clicks while in flight
+
+    setCardLoadingFor(id, true)
+    // Mock the PATCH round-trip; the real backend regen takes 2–5s.
+    setTimeout(() => {
+      const currentIdx = responseIdx[id] ?? 0
+      const nextIdx = currentIdx + 1
+      if (nextIdx < review.responses.length) {
+        setResponseIdx((prev) => ({ ...prev, [id]: nextIdx }))
+      }
+      setRejections((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }))
+      setCardLoadingFor(id, false)
+    }, 1200)
   }
 
   function handleFeedbackSubmit(id: string) {
     const review = CALIBRATION_REVIEWS.find((r) => r.id === id)
     if (!review) return
-    setFeedbackSubmitting(id)
+    if (cardLoading.has(id)) return
+
+    setCardLoadingFor(id, true)
     setTimeout(() => {
       // Advance to the next response variant (the "improved" one after feedback)
       const currentIdx = responseIdx[id] ?? 0
@@ -233,9 +254,9 @@ export default function OnboardingPage() {
       if (nextIdx < review.responses.length) {
         setResponseIdx((prev) => ({ ...prev, [id]: nextIdx }))
       }
-      setFeedbackSubmitting(null)
       // Reset rejection count so the feedback area hides
       setRejections((prev) => ({ ...prev, [id]: 0 }))
+      setCardLoadingFor(id, false)
     }, 1500)
   }
 
@@ -530,7 +551,7 @@ export default function OnboardingPage() {
                 const isAccepted = accepted.has(review.id)
                 const currentResponseIdx = responseIdx[review.id] ?? 0
                 const rejectionCount = rejections[review.id] ?? 0
-                const isSubmittingFeedback = feedbackSubmitting === review.id
+                const isLoading = cardLoading.has(review.id)
                 const starsClass =
                   review.type === 'positive' ? styles.calibStarsPositive :
                   review.type === 'mixed' ? styles.calibStarsMixed :
@@ -556,40 +577,48 @@ export default function OnboardingPage() {
                       )}
                     </div>
                     <p className={styles.calibReview}>{review.review}</p>
-                    <div className={styles.calibResponseWrap}>
-                      <div className={styles.calibResponseTag}>AI response</div>
-                      <p className={styles.calibResponseBody}>{review.responses[currentResponseIdx]}</p>
-                    </div>
-                    {rejectionCount >= 2 && !isAccepted && (
-                      <div className={styles.calibFeedback}>
-                        <label className={styles.calibFeedbackLabel} htmlFor={`feedback-${review.id}`}>
-                          What didn&apos;t feel right? The more you tell us, the better we&apos;ll match your voice.
-                        </label>
-                        <textarea
-                          id={`feedback-${review.id}`}
-                          className={styles.calibFeedbackTextarea}
-                          rows={2}
-                          placeholder="Optional — skip if you prefer"
-                          disabled={isSubmittingFeedback}
-                        />
-                        <button
-                          className={`${styles.btn} ${styles.btnFeedbackSubmit}`}
-                          onClick={() => handleFeedbackSubmit(review.id)}
-                          disabled={isSubmittingFeedback}
-                        >
-                          {isSubmittingFeedback ? 'Updating response...' : 'Submit feedback'}
-                        </button>
+
+                    {isLoading ? (
+                      <div className={styles.calibCardLoading} role="status" aria-live="polite">
+                        <span className={styles.calibSpinner} aria-hidden="true" />
+                        <span className={styles.calibCardLoadingText}>Generating new response...</span>
                       </div>
-                    )}
-                    {!isAccepted && !isSubmittingFeedback && (
-                      <div className={styles.calibActions}>
-                        <button className={`${styles.btn} ${styles.btnCalibOutline}`} onClick={() => handleAccept(review.id)}>
-                          Looks good
-                        </button>
-                        <button className={`${styles.btn} ${styles.btnCalibOutline}`} onClick={() => handleReject(review.id)}>
-                          Not quite
-                        </button>
-                      </div>
+                    ) : (
+                      <>
+                        <div className={styles.calibResponseWrap}>
+                          <div className={styles.calibResponseTag}>AI response</div>
+                          <p className={styles.calibResponseBody}>{review.responses[currentResponseIdx]}</p>
+                        </div>
+                        {rejectionCount >= 2 && !isAccepted && (
+                          <div className={styles.calibFeedback}>
+                            <label className={styles.calibFeedbackLabel} htmlFor={`feedback-${review.id}`}>
+                              What didn&apos;t feel right? The more you tell us, the better we&apos;ll match your voice.
+                            </label>
+                            <textarea
+                              id={`feedback-${review.id}`}
+                              className={styles.calibFeedbackTextarea}
+                              rows={2}
+                              placeholder="Optional — skip if you prefer"
+                            />
+                            <button
+                              className={`${styles.btn} ${styles.btnFeedbackSubmit}`}
+                              onClick={() => handleFeedbackSubmit(review.id)}
+                            >
+                              Submit feedback
+                            </button>
+                          </div>
+                        )}
+                        {!isAccepted && (
+                          <div className={styles.calibActions}>
+                            <button className={`${styles.btn} ${styles.btnCalibOutline}`} onClick={() => handleAccept(review.id)}>
+                              Looks good
+                            </button>
+                            <button className={`${styles.btn} ${styles.btnCalibOutline}`} onClick={() => handleReject(review.id)}>
+                              Not quite
+                            </button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </article>
                 )
