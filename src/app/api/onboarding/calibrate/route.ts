@@ -10,7 +10,7 @@ import type { BrandVoice, ExistingResponse, ScenarioType } from '@/lib/types'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const CALIBRATION_SCENARIOS: ScenarioType[] = [
+const BASE_CALIBRATION_SCENARIOS: ScenarioType[] = [
   '5star',
   '4star_minor',
   '3star_mixed',
@@ -18,6 +18,21 @@ const CALIBRATION_SCENARIOS: ScenarioType[] = [
   'complaint_food',
   'complaint_service',
 ]
+
+/**
+ * Returns the 6 calibration scenarios used during onboarding.
+ *
+ * For non-English locations we swap `complaint_service` for `multilingual` so
+ * the owner sees at least one example written in their actual language during
+ * calibration — otherwise a Spanish/French restaurant would calibrate the AI
+ * entirely on English samples and never sanity-check the language behavior.
+ */
+function getCalibrationScenarios(language: string): ScenarioType[] {
+  if (language !== 'en') {
+    return BASE_CALIBRATION_SCENARIOS.map(s => s === 'complaint_service' ? 'multilingual' : s)
+  }
+  return BASE_CALIBRATION_SCENARIOS
+}
 
 const GBP_BASE = 'https://mybusiness.googleapis.com/v4'
 
@@ -300,8 +315,9 @@ export async function POST(request: Request): Promise<NextResponse> {
   const openai = buildOpenAI()
   let outputs: (CalibrationOutput & { scenario: ScenarioType })[]
   try {
+    const scenarios = getCalibrationScenarios(brandVoice.language)
     const results = await Promise.all(
-      CALIBRATION_SCENARIOS.map(async scenario => {
+      scenarios.map(async scenario => {
         const output = await generateExample(openai, brandVoice, existingResponses, scenario)
         return { ...output, scenario }
       }),
@@ -369,19 +385,21 @@ export async function PATCH(request: Request): Promise<NextResponse> {
 
   const supabase = buildServiceSupabase()
 
-  // Load example and verify it belongs to an owned location
+  // Load example and verify it belongs to an owned location.
+  // We load scenario_type here too because edit/reject triggers a regen for the same scenario.
   const { data: example, error: exErr } = await supabase
     .from('calibration_examples')
-    .select('id, session_id, location_id')
+    .select('id, session_id, location_id, scenario_type')
     .eq('id', exampleId)
     .single()
 
   if (exErr || !example) return NextResponse.json({ error: 'Example not found' }, { status: 404 })
 
   const locId = example.location_id as string
+  // We need google_location_id for the GBP fetch during regen — fold it into the same query.
   const { data: location, error: locErr } = await supabase
     .from('locations')
-    .select('owner_id')
+    .select('owner_id, google_location_id')
     .eq('id', locId)
     .single()
 
@@ -447,5 +465,117 @@ export async function PATCH(request: Request): Promise<NextResponse> {
     }
   }
 
-  return NextResponse.json({ calibrationComplete, acceptedCount })
+  // ── Regeneration after edit/reject ─────────────────────────────────────────
+  // Whenever the owner edits or rejects a card, generate a fresh AI attempt for
+  // the same scenario so the UI can offer them another option to consider.
+  // The original decision has already been recorded above — regen failure is
+  // non-fatal: we return newExample: null and let the UI handle the empty slot.
+  let newExample: {
+    id: string
+    scenario_type: ScenarioType
+    review_sample: string
+    ai_response: string
+    decision: string
+  } | null = null
+
+  if (decision === 'edited' || decision === 'rejected') {
+    try {
+      newExample = await regenerateExample(
+        supabase,
+        locId,
+        location.google_location_id as string,
+        example.session_id as string,
+        example.scenario_type as ScenarioType,
+      )
+    } catch (err) {
+      // Non-fatal — log and return null. The decision write above succeeded.
+      console.error('regenerate after decision failed:', err)
+    }
+  }
+
+  return NextResponse.json({ calibrationComplete, acceptedCount, newExample })
+}
+
+// ─── Regeneration helper ─────────────────────────────────────────────────────
+// Loads brand voice, refreshes the access token if needed, fetches existing GBP
+// responses for few-shot context, generates one new example for the requested
+// scenario, and inserts it as a new pending row in the same calibration session.
+async function regenerateExample(
+  supabase: SupabaseClient<any>,
+  locationId: string,
+  googleLocationId: string,
+  sessionId: string,
+  scenario: ScenarioType,
+): Promise<{
+  id: string
+  scenario_type: ScenarioType
+  review_sample: string
+  ai_response: string
+  decision: string
+}> {
+  // Load brand voice
+  const { data: bvRow, error: bvErr } = await supabase
+    .from('brand_voices')
+    .select('personality, avoid, signature_phrases, language, owner_description')
+    .eq('location_id', locationId)
+    .single()
+
+  if (bvErr || !bvRow) throw new Error(`regenerateExample: brand voice not found for ${locationId}`)
+
+  const brandVoice: BrandVoice = {
+    personality: bvRow.personality as string,
+    avoid: bvRow.avoid as string,
+    signature_phrases: bvRow.signature_phrases as string[],
+    language: bvRow.language as string,
+    owner_description: bvRow.owner_description as string | null,
+  }
+
+  // Resolve access token (refreshes if expiring)
+  const accessToken = await resolveAccessToken(supabase, locationId)
+
+  // Best-effort GBP fetch for few-shot context — same pattern as POST.
+  // Calibration still works without it; the prompt just has less personalization.
+  let existingResponses: ExistingResponse[] = []
+  try {
+    const allReviews = await fetchAllReviewsFirstPage(googleLocationId, accessToken)
+    existingResponses = allReviews
+      .filter(r => r.reviewReply?.comment)
+      .map(r => ({
+        review_text: r.comment ?? '',
+        review_rating: STAR_RATING[r.starRating] ?? 0,
+        response_text: r.reviewReply!.comment,
+      }))
+  } catch (err) {
+    console.warn('regenerateExample: fetchAllReviews failed (continuing without examples):', err)
+  }
+
+  // Generate one new example for the requested scenario
+  const openai = buildOpenAI()
+  const output = await generateExample(openai, brandVoice, existingResponses, scenario)
+
+  // Insert as a new pending row in the same session
+  const { data: inserted, error: insertErr } = await supabase
+    .from('calibration_examples')
+    .insert({
+      session_id: sessionId,
+      location_id: locationId,
+      scenario_type: scenario,
+      review_sample: output.review_sample,
+      ai_response: output.ai_response,
+      decision: 'pending',
+    })
+    .select('id, scenario_type, review_sample, ai_response, decision')
+    .single()
+
+  if (insertErr || !inserted) {
+    throw new Error(`regenerateExample: insert failed — ${insertErr?.message ?? 'no row returned'}`)
+  }
+
+  return inserted as {
+    id: string
+    scenario_type: ScenarioType
+    review_sample: string
+    ai_response: string
+    decision: string
+  }
 }
