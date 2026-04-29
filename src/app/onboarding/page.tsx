@@ -800,6 +800,13 @@ function OnboardingContent() {
               >
                 Try again
               </button>
+              {/* TODO: remove before launch */}
+              <button
+                className={styles.skipLink}
+                onClick={() => goToStep(4)}
+              >
+                Skip for now
+              </button>
             </div>
           )}
 
