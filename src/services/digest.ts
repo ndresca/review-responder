@@ -4,7 +4,9 @@ import { Resend } from 'resend'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const FROM_ADDRESS = 'noreply@PLACEHOLDER_DOMAIN' // TODO: update when domain is confirmed
+// Override per-environment with RESEND_FROM_ADDRESS (e.g. for staging or a custom
+// reply-to domain). Defaults to noreply@autoplier.com for production.
+const FROM_ADDRESS = process.env.RESEND_FROM_ADDRESS ?? 'noreply@autoplier.com'
 
 // ─── Clients ─────────────────────────────────────────────────────────────────
 
