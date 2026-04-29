@@ -47,17 +47,20 @@ export async function GET(): Promise<NextResponse> {
       brandVoice: null,
       notifications: null,
       subscription: null,
+      autoPostEnabled: false,
     })
   }
 
   const locationId = location.id as string
 
   // Brand voice + notification preferences may not exist if onboarding
-  // didn't complete — both queries are best-effort.
+  // didn't complete — both queries are best-effort. autoPostEnabled is
+  // surfaced separately at the top level of the response so the settings
+  // page's Pause/Resume button can hydrate without parsing brandVoice.
   const [bvResult, npResult, subResult] = await Promise.all([
     supabase
       .from('brand_voices')
-      .select('personality, avoid, signature_phrases, language, owner_description')
+      .select('personality, avoid, signature_phrases, language, owner_description, auto_post_enabled')
       .eq('location_id', locationId)
       .maybeSingle(),
     supabase
@@ -97,5 +100,6 @@ export async function GET(): Promise<NextResponse> {
       status: subResult.data.status as string,
       currentPeriodEnd: (subResult.data.current_period_end as string | null) ?? null,
     } : null,
+    autoPostEnabled: (bvResult.data?.auto_post_enabled as boolean) ?? false,
   })
 }

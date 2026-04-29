@@ -59,6 +59,7 @@ type LoadResponse = {
     status: string
     currentPeriodEnd: string | null
   } | null
+  autoPostEnabled: boolean
 }
 
 function Toggle({
@@ -113,8 +114,11 @@ function SettingsContent() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  // UI state
+  // UI state. paused mirrors brand_voices.auto_post_enabled (inverted) — true
+  // here means auto-post is OFF. Hydrated from /api/settings/load on mount;
+  // toggled via /api/settings/toggle-auto-post (shared with the dashboard pill).
   const [paused, setPaused] = useState(false)
+  const [pauseToggling, setPauseToggling] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showCancelSub, setShowCancelSub] = useState(false)
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
@@ -181,6 +185,9 @@ function SettingsContent() {
           next.weekly = data.notifications.frequency === 'weekly'
           next.hourIdx = timeToHourIdx(data.notifications.digestTime)
         }
+
+        // Hydrate the danger-zone Pause/Resume button. paused === !autoPostEnabled.
+        setPaused(!data.autoPostEnabled)
 
         // Push into state.
         setRestaurantName(next.restaurantName)
@@ -312,6 +319,32 @@ function SettingsContent() {
   function handleUnsavedDiscard() {
     setShowUnsavedDialog(false)
     router.push('/dashboard')
+  }
+
+  // Pause/Resume — calls the shared toggle endpoint and reconciles paused
+  // from the server's authoritative response. Optimistic flip on click so
+  // the button feels instant; rolled back on failure.
+  async function handleToggleAutoPost() {
+    if (pauseToggling) return
+    const previousPaused = paused
+    setPaused(!previousPaused)
+    setPauseToggling(true)
+    try {
+      const res = await fetch('/api/settings/toggle-auto-post', { method: 'POST' })
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        console.error(`POST /api/settings/toggle-auto-post failed: HTTP ${res.status}`, body)
+        setPaused(previousPaused)
+        return
+      }
+      const json = (await res.json()) as { autoPostEnabled: boolean }
+      setPaused(!json.autoPostEnabled)
+    } catch (err) {
+      console.error('POST /api/settings/toggle-auto-post threw:', err)
+      setPaused(previousPaused)
+    } finally {
+      setPauseToggling(false)
+    }
   }
 
   async function handleCancelSubscription() {
@@ -577,10 +610,11 @@ function SettingsContent() {
           <button
             className={styles.btnMutedOutline}
             aria-label={paused ? 'Resume auto-posting' : 'Pause auto-posting'}
-            onClick={() => setPaused(!paused)}
+            onClick={handleToggleAutoPost}
+            disabled={pauseToggling}
             style={paused ? { color: 'var(--success)', borderColor: 'var(--success)' } : undefined}
           >
-            {paused ? 'Resume' : 'Pause'}
+            {pauseToggling ? '...' : (paused ? 'Resume' : 'Pause')}
           </button>
         </div>
 
