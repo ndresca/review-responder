@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef, Suspense } from 'react'
+import { useState, useCallback, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import styles from './settings.module.css'
 
@@ -10,27 +10,55 @@ const HOURS = [
   '6:00 PM', '7:00 PM', '8:00 PM', '9:00 PM',
 ]
 
-// Hour string → 0–23 index for digest_time. The mock seed uses index 2 = 8am.
+// HOURS starts at 6am — convert between digest_time (0–23 hour) and the
+// picker's index. clamp() keeps an out-of-range stored hour from breaking
+// the UI (5am or 10pm just snap to nearest visible).
 function hourIdxToTime(idx: number): number {
-  // HOURS starts at 6am, so index 0 = 6, index 1 = 7, etc.
   return 6 + idx
 }
 
-// TODO(load-endpoint): the page currently seeds from this hardcoded mock.
-// Once GET /api/settings/load is wired, replace INITIAL with whatever the
-// endpoint returns for the user's first location. handleSave will then
-// update real DB rows; right now it overwrites them with this mock if the
-// user clicks save without editing.
-const INITIAL = {
-  restaurantName: 'Cafe Luna',
-  personality: 'warm, local, slightly cheeky',
-  avoid: 'We apologise for any inconvenience',
-  signaturePhrasesText: 'see you soon!, come back and see us',
+function timeToHourIdx(hour: number): number {
+  const idx = hour - 6
+  if (idx < 0) return 0
+  if (idx >= HOURS.length) return HOURS.length - 1
+  return idx
+}
+
+// Empty-state defaults used until the load endpoint resolves and when the
+// load returns null/empty rows (new accounts that haven't completed onboarding).
+const EMPTY_DEFAULTS = {
+  restaurantName: '',
+  personality: '',
+  avoid: '',
+  signaturePhrasesText: '',
   language: 'en',
   daily: true,
   weekly: false,
   lowAlert: false,
   hourIdx: 2,
+}
+
+type LoadResponse = {
+  locationId: string | null
+  restaurantName: string | null
+  brandVoice: {
+    personality: string
+    avoid: string
+    signaturePhrases: string[]
+    language: string
+    ownerDescription: string | null
+  } | null
+  notifications: {
+    frequency: 'daily' | 'weekly'
+    digestDay: number | null
+    digestTime: number
+    timezone: string | null
+    failureAlerts: boolean
+  } | null
+  subscription: {
+    status: string
+    currentPeriodEnd: string | null
+  } | null
 }
 
 function Toggle({
@@ -60,18 +88,30 @@ function Toggle({
 function SettingsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const locationId = searchParams.get('locationId')
+  // URL param is a fallback; the load endpoint is authoritative for which
+  // location this owner edits. The param exists so direct links to
+  // /settings?locationId=... still work for QA.
+  const locationIdFromUrl = searchParams.get('locationId')
+  const [locationId, setLocationId] = useState<string | null>(locationIdFromUrl)
 
-  // Form state — all editable inline, all dirty-tracked.
-  const [restaurantName, setRestaurantName] = useState(INITIAL.restaurantName)
-  const [personality, setPersonality] = useState(INITIAL.personality)
-  const [avoid, setAvoid] = useState(INITIAL.avoid)
-  const [signaturePhrasesText, setSignaturePhrasesText] = useState(INITIAL.signaturePhrasesText)
-  const [language, setLanguage] = useState(INITIAL.language)
-  const [daily, setDaily] = useState(INITIAL.daily)
-  const [weekly, setWeekly] = useState(INITIAL.weekly)
-  const [lowAlert, setLowAlert] = useState(INITIAL.lowAlert)
-  const [hourIdx, setHourIdx] = useState(INITIAL.hourIdx)
+  // Form state — all editable inline, all dirty-tracked. Seeded with
+  // empty defaults; the load effect populates from real DB rows on mount.
+  const [restaurantName, setRestaurantName] = useState(EMPTY_DEFAULTS.restaurantName)
+  const [personality, setPersonality] = useState(EMPTY_DEFAULTS.personality)
+  const [avoid, setAvoid] = useState(EMPTY_DEFAULTS.avoid)
+  const [signaturePhrasesText, setSignaturePhrasesText] = useState(EMPTY_DEFAULTS.signaturePhrasesText)
+  const [language, setLanguage] = useState(EMPTY_DEFAULTS.language)
+  const [daily, setDaily] = useState(EMPTY_DEFAULTS.daily)
+  const [weekly, setWeekly] = useState(EMPTY_DEFAULTS.weekly)
+  const [lowAlert, setLowAlert] = useState(EMPTY_DEFAULTS.lowAlert)
+  const [hourIdx, setHourIdx] = useState(EMPTY_DEFAULTS.hourIdx)
+
+  // Initial-load state. While loading, the form sections are replaced with a
+  // centered spinner so we don't briefly show the empty defaults as if they
+  // were the user's saved settings. loadError is non-fatal — page still
+  // renders, fields just stay at defaults and a small notice shows up.
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   // UI state
   const [paused, setPaused] = useState(false)
@@ -92,9 +132,83 @@ function SettingsContent() {
   const [deleting, setDeleting] = useState(false)
 
   // Saved snapshot for dirty checking. Bumping savedVersion forces re-render
-  // after save without the previous setRestaurantName(restaurantName) hack.
-  const savedRef = useRef({ ...INITIAL })
+  // after save. Initialised to the empty defaults so isDirty() is false on
+  // mount; replaced with the actual loaded values once the load fetch resolves.
+  const savedRef = useRef({ ...EMPTY_DEFAULTS })
   const [, setSavedVersion] = useState(0)
+
+  // ── Initial load ─────────────────────────────────────────────────────────
+  // Fetches the owner's first location + brand voice + notification prefs
+  // from /api/settings/load, populates state. Cancelled flag prevents
+  // setStating after unmount (e.g. if the user navigates away mid-fetch).
+  useEffect(() => {
+    let cancelled = false
+
+    async function load() {
+      try {
+        const res = await fetch('/api/settings/load')
+        if (cancelled) return
+
+        if (!res.ok) {
+          const body = await res.text().catch(() => '')
+          console.error(`GET /api/settings/load failed: HTTP ${res.status}`, body)
+          setLoadError(res.status === 401 ? 'Sign in again to load your settings.' : 'Couldn\'t load your settings.')
+          return
+        }
+
+        const data = (await res.json()) as LoadResponse
+        if (cancelled) return
+
+        // locationId from API takes precedence over the URL param — the
+        // server resolves "the owner's first location" definitively.
+        if (data.locationId) setLocationId(data.locationId)
+
+        // Apply each block independently so a partially-onboarded account
+        // (brand_voices set, notifications not) still gets what it has.
+        const next = { ...EMPTY_DEFAULTS }
+
+        if (data.restaurantName) next.restaurantName = data.restaurantName
+
+        if (data.brandVoice) {
+          next.personality = data.brandVoice.personality ?? ''
+          next.avoid = data.brandVoice.avoid ?? ''
+          next.signaturePhrasesText = (data.brandVoice.signaturePhrases ?? []).join(', ')
+          next.language = data.brandVoice.language ?? 'en'
+        }
+
+        if (data.notifications) {
+          next.daily = data.notifications.frequency === 'daily'
+          next.weekly = data.notifications.frequency === 'weekly'
+          next.hourIdx = timeToHourIdx(data.notifications.digestTime)
+        }
+
+        // Push into state.
+        setRestaurantName(next.restaurantName)
+        setPersonality(next.personality)
+        setAvoid(next.avoid)
+        setSignaturePhrasesText(next.signaturePhrasesText)
+        setLanguage(next.language)
+        setDaily(next.daily)
+        setWeekly(next.weekly)
+        setHourIdx(next.hourIdx)
+
+        // Reset the dirty baseline to the loaded values so the save button
+        // stays hidden until the user actually edits.
+        savedRef.current = { ...next }
+        setSavedVersion(v => v + 1)
+      } catch (err) {
+        if (cancelled) return
+        console.error('GET /api/settings/load threw:', err)
+        setLoadError('Network error — check your connection.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    load()
+
+    return () => { cancelled = true }
+  }, [])
 
   const isDirty = useCallback(() => {
     const s = savedRef.current
@@ -292,6 +406,19 @@ function SettingsContent() {
 
       <h1 className={styles.pageTitle}>Settings</h1>
 
+      {loading && (
+        <div className={styles.settingsLoading} role="status" aria-live="polite">
+          <span className={styles.settingsSpinner} aria-hidden="true" />
+          <span className={styles.settingsLoadingText}>Loading your settings...</span>
+        </div>
+      )}
+
+      {!loading && loadError && (
+        <p className={styles.loadErrorNotice} role="alert">{loadError}</p>
+      )}
+
+      {!loading && (
+        <>
       {/* Section 1: Your location */}
       <section className={`${styles.settingsSection} ${styles.firstSection}`} aria-label="Your location">
         <h2 className={styles.sectionLabel}>Your location</h2>
@@ -488,10 +615,13 @@ function SettingsContent() {
           </button>
         </div>
       </section>
+        </>
+      )}
 
       {/* Save changes button — sticky, only when dirty (or while flashing
-          "Saved" so the success state is visible). */}
-      {(isDirty() || savedFlash || saveError) && (
+          "Saved" so the success state is visible). Hidden during initial
+          load since the form sections aren't rendered. */}
+      {!loading && (isDirty() || savedFlash || saveError) && (
         <div className={styles.saveWrap}>
           {saveError && <p className={styles.saveError}>{saveError}</p>}
           <button

@@ -54,33 +54,30 @@ export async function POST(request: Request): Promise<NextResponse> {
   const stripeSubId = sub.stripe_subscription_id as string
   const currentStatus = sub.status as string
 
-  // If already canceled, no-op (idempotent — handles double-clicks and retries).
+  // If the sub is already fully canceled (period ended), nothing to do.
+  // Stripe would 400 on update for a canceled sub anyway.
   if (currentStatus === 'canceled') {
     return NextResponse.json({ success: true, alreadyCanceled: true })
   }
 
-  // Cancel in Stripe first. If this fails we don't update the DB — the user
-  // can retry. If we updated DB first and Stripe call failed, we'd have an
-  // inconsistent state where billing continues but our app says canceled.
+  // Schedule cancellation at the end of the current billing period rather
+  // than ending immediately. The user keeps access through their paid window;
+  // Stripe will fire customer.subscription.deleted at period end which our
+  // webhook handler maps to status='canceled' in Supabase. Repeat clicks are
+  // idempotent on Stripe's side — setting cancel_at_period_end=true twice is
+  // a no-op.
   try {
-    await stripe.subscriptions.cancel(stripeSubId)
+    await stripe.subscriptions.update(stripeSubId, { cancel_at_period_end: true })
   } catch (err) {
-    console.error('cancel-subscription: stripe.subscriptions.cancel failed:', err)
+    console.error('cancel-subscription: stripe.subscriptions.update failed:', err)
     return NextResponse.json({ error: 'Stripe cancellation failed' }, { status: 502 })
   }
 
-  // Mirror to Supabase. The customer.subscription.deleted webhook will also
-  // fire and run the same UPDATE — that's fine, it's idempotent.
-  const { error: updateErr } = await supabase
-    .from('subscriptions')
-    .update({ status: 'canceled' } as never)
-    .eq('location_id', locationId)
-
-  if (updateErr) {
-    // Stripe cancellation succeeded but DB update failed — log loudly. The
-    // webhook should reconcile within seconds, so we still return success.
-    console.error('cancel-subscription: DB update failed (webhook should reconcile):', updateErr.message)
-  }
+  // Don't mirror status='canceled' to Supabase here — the sub IS still active
+  // until period end. Setting it would be incorrect and would also be
+  // overwritten by the customer.subscription.updated webhook (which fires
+  // immediately when cancel_at_period_end flips and reports the still-current
+  // status). The deletion webhook handles the final flip at period end.
 
   return NextResponse.json({ success: true })
 }
