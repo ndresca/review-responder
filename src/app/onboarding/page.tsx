@@ -1000,13 +1000,23 @@ export default function OnboardingPage() {
 
           <button
             className={`${styles.btn} ${styles.btnAmber}`}
+            disabled={!locationId}
             onClick={async () => {
+              if (!locationId) {
+                console.error('Checkout aborted: missing locationId on the page')
+                return
+              }
               try {
                 const res = await fetch('/api/stripe/checkout', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ locationId: 'TODO_FROM_SESSION' }),
+                  body: JSON.stringify({ locationId }),
                 })
+                if (!res.ok) {
+                  const body = await res.text().catch(() => '')
+                  console.error(`POST /api/stripe/checkout failed: HTTP ${res.status}`, body)
+                  return
+                }
                 const data = await res.json()
                 if (data.url) {
                   window.location.href = data.url
@@ -1018,6 +1028,11 @@ export default function OnboardingPage() {
           >
             Start free trial
           </button>
+          {!locationId && (
+            <p className={styles.fieldError}>
+              Missing location — reconnect your Google account from step 1 before starting your trial.
+            </p>
+          )}
           <p className={styles.paymentSecured}>Secured by Stripe</p>
         </section>
       )}
