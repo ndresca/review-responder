@@ -78,10 +78,17 @@ function OnboardingContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   // The OAuth callback (src/app/api/auth/google/callback/route.ts) drops the
-  // user back at /onboarding?step=2 today — once it also includes ?locationId=
-  // (or we add a /api/session/me endpoint), this picks it up automatically.
+  // user back at /onboarding?step=2&locationId={uuid} after auth, and the
+  // payment success bounce uses ?step=5. Read the param on initial render
+  // so deep-linked URLs land on the correct step instead of always step 1.
   const locationId = searchParams.get('locationId')
-  const [currentStep, setCurrentStep] = useState(1)
+  const initialStep = (() => {
+    const raw = searchParams.get('step')
+    if (!raw) return 1
+    const n = parseInt(raw, 10)
+    return Number.isFinite(n) && n >= 1 && n <= TOTAL_STEPS ? n : 1
+  })()
+  const [currentStep, setCurrentStep] = useState(initialStep)
 
   // Analysis loading (after Google connect, before step 2)
   const [analysisLoading, setAnalysisLoading] = useState(false)
