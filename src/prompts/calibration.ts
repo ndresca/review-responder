@@ -39,10 +39,23 @@ function formatExistingResponses(responses: ExistingResponse[]): string {
   return `\nHere are real responses this owner has written in the past. These are the gold standard for their voice:\n\n${examples}`
 }
 
+function formatOwnerFeedback(ownerFeedback: string | undefined): string {
+  if (!ownerFeedback || !ownerFeedback.trim()) return ''
+  // Escape any single quotes so the prompt doesn't end up with mismatched quoting
+  // when the feedback contains things like "it's too formal".
+  const sanitized = ownerFeedback.trim().replace(/'/g, "\\'")
+  return `\n- The owner reviewed the previous response for this scenario and said: '${sanitized}'. Adjust accordingly — take this as a strong signal about what to change in this new attempt.`
+}
+
 /**
  * Builds a prompt that asks the AI to generate a calibration example —
  * a realistic sample review for the given scenario type and a response to it
  * in the restaurant's voice.
+ *
+ * `ownerFeedback` is optional and only flows in via the regen path: when the
+ * owner rejects an example with typed feedback, we re-run this prompt with
+ * their note included as an extra guideline so the next attempt actually
+ * incorporates the criticism.
  *
  * The AI should return JSON: { "review_sample": string, "ai_response": string }
  */
@@ -50,6 +63,7 @@ export function buildCalibrationPrompt(
   brandVoice: BrandVoice,
   existingResponses: ExistingResponse[],
   scenario: ScenarioType,
+  ownerFeedback?: string,
 ): string {
   const scenarioDescription = SCENARIO_DESCRIPTIONS[scenario]
   const isMultilingual = scenario === 'multilingual'
@@ -79,7 +93,7 @@ GUIDELINES FOR THE RESPONSE
 - Length: 2–4 sentences. Never a wall of text.
 - Do NOT use the phrase "we take your feedback seriously" or any variation of it.
 - Do NOT start with "Thank you for your review" — it sounds robotic.
-- Do NOT make any factual claims about the restaurant that are not implied by the review itself.
+- Do NOT make any factual claims about the restaurant that are not implied by the review itself.${formatOwnerFeedback(ownerFeedback)}
 
 OUTPUT FORMAT
 ─────────────

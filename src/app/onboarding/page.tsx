@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { LogoFull } from '@/components/LogoFull'
 import styles from './onboarding.module.css'
 
@@ -72,6 +72,11 @@ function starsDisplay(count: number) {
 
 export default function OnboardingPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // The OAuth callback (src/app/api/auth/google/callback/route.ts) drops the
+  // user back at /onboarding?step=2 today — once it also includes ?locationId=
+  // (or we add a /api/session/me endpoint), this picks it up automatically.
+  const locationId = searchParams.get('locationId')
   const [currentStep, setCurrentStep] = useState(1)
 
   // Analysis loading (after Google connect, before step 2)
@@ -91,10 +96,9 @@ export default function OnboardingPage() {
   // Calibration
   const [accepted, setAccepted] = useState<Set<string>>(new Set())
   const [rejections, setRejections] = useState<Record<string, number>>({})
-  // Per-card live state. exampleId is null until the calibration session POST
-  // populates it with a real DB UUID — until then PATCH calls will 404. After
-  // each successful regen we swap in newExample.id so subsequent interactions
-  // target the freshly inserted row.
+  // Per-card live state. Keyed by the local card id (which becomes the real
+  // example UUID after POST returns). reviewSample / aiResponse are swapped
+  // in after every successful regen.
   const [cardState, setCardState] = useState<Record<string, {
     exampleId: string | null
     reviewSample: string
@@ -104,13 +108,28 @@ export default function OnboardingPage() {
     reviewSample: r.review,
     aiResponse: r.responses[0],
   }])))
+  // List of card keys to render. Starts as the mock CALIBRATION_REVIEWS ids;
+  // once POST returns we swap to real example UUIDs and rebuild cardState.
+  const [cardOrder, setCardOrder] = useState<string[]>(CALIBRATION_REVIEWS.map(r => r.id))
+  // Map of card key → metadata (stars, type) for rendering. Mirrors
+  // CALIBRATION_REVIEWS for the mock seed; populated from scenario_type
+  // after POST. Kept separate from cardState so we don't have to refetch
+  // it on every regen.
+  type CardMeta = { stars: number; type: 'positive' | 'mixed' | 'negative' }
+  const [cardMeta, setCardMeta] = useState<Record<string, CardMeta>>(() =>
+    Object.fromEntries(CALIBRATION_REVIEWS.map(r => [r.id, { stars: r.stars, type: r.type }])),
+  )
   // Per-card loading: card id → in-flight regeneration. Drives the spinner
   // overlay during reject and feedback-submit (both trigger PATCH on the
   // backend, which returns a freshly generated newExample to swap in).
   const [cardLoading, setCardLoading] = useState<Set<string>>(new Set())
+  // Page-level calibration loading: drives the full-screen state while the
+  // POST runs. POST generates 6 examples in parallel via OpenAI — typically
+  // 8–25s of wall time — so this is a real wait, not a fake progress bar.
   const [calibLoading, setCalibLoading] = useState(false)
   const [calibReady, setCalibReady] = useState(false)
-  const [loadingProgress, setLoadingProgress] = useState(0)
+  const [calibError, setCalibError] = useState<string | null>(null)
+  const [calibSessionId, setCalibSessionId] = useState<string | null>(null)
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0])
 
   // Digest
@@ -164,36 +183,119 @@ export default function OnboardingPage() {
     }
   }, [analysisLoading, goToStep])
 
-  // Calibration loading effect
+  // Maps the API's scenario_type to the visual metadata each card shows.
+  // The visual mapping is purely cosmetic — the backend doesn't care what
+  // stars/badge we show next to each card.
+  function metaForScenario(scenarioType: string): CardMeta {
+    switch (scenarioType) {
+      case '5star':            return { stars: 5, type: 'positive' }
+      case '4star_minor':      return { stars: 4, type: 'positive' }
+      case '3star_mixed':      return { stars: 3, type: 'mixed' }
+      case '1star_harsh':      return { stars: 1, type: 'negative' }
+      case 'complaint_food':
+      case 'complaint_service':
+      case 'complaint_wait':   return { stars: 2, type: 'negative' }
+      case 'multilingual':     return { stars: 4, type: 'mixed' }
+      default:                 return { stars: 3, type: 'mixed' }
+    }
+  }
+
+  // Calibration POST: fires when the user lands on step 3, generates 6
+  // examples in parallel server-side (8–25s of wall time on the OpenAI
+  // round-trips). Cycles through LOADING_MESSAGES every ~2.5s while we wait.
+  // The cancelled flag handles back-nav cleanly — even if the fetch resolves
+  // after we've left the step, we just discard the result instead of
+  // setStating into an unmounted view.
   useEffect(() => {
     if (!calibLoading) return
 
+    let cancelled = false
     let msgIdx = 0
+    setLoadingMsg(LOADING_MESSAGES[0])
     const msgInterval = setInterval(() => {
-      msgIdx++
-      if (msgIdx < LOADING_MESSAGES.length) {
-        setLoadingMsg(LOADING_MESSAGES[msgIdx])
-      }
-    }, 800)
+      msgIdx = (msgIdx + 1) % LOADING_MESSAGES.length
+      setLoadingMsg(LOADING_MESSAGES[msgIdx])
+    }, 2500)
 
-    const timers = [
-      setTimeout(() => setLoadingProgress(15), 16),
-      setTimeout(() => setLoadingProgress(40), 400),
-      setTimeout(() => setLoadingProgress(70), 1200),
-      setTimeout(() => setLoadingProgress(90), 2200),
-      setTimeout(() => setLoadingProgress(100), 2800),
-      setTimeout(() => {
-        clearInterval(msgInterval)
+    async function run() {
+      if (!locationId) {
+        if (cancelled) return
+        setCalibError('Missing location — open onboarding via the Google connect flow so we know which restaurant to calibrate for.')
+        setCalibLoading(false)
+        return
+      }
+
+      try {
+        const res = await fetch('/api/onboarding/calibrate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ locationId }),
+        })
+        if (cancelled) return
+
+        if (!res.ok) {
+          const body = await res.text().catch(() => '')
+          console.error(`POST /api/onboarding/calibrate failed: HTTP ${res.status}`, body)
+          setCalibError(
+            res.status === 401 ? 'You need to sign in again before we can calibrate.'
+            : res.status === 403 ? 'You don\'t have access to this location.'
+            : 'We couldn\'t generate sample responses. Try again in a moment.',
+          )
+          setCalibLoading(false)
+          return
+        }
+
+        const data = (await res.json()) as {
+          sessionId: string
+          examples: Array<{
+            id: string
+            scenario_type: string
+            review_sample: string
+            ai_response: string
+            decision: string
+          }>
+        }
+        if (cancelled) return
+
+        // Rebuild cardState/cardMeta/cardOrder around the real example UUIDs.
+        // The mock seed (CALIBRATION_REVIEWS) is replaced wholesale here.
+        const newOrder = data.examples.map(e => e.id)
+        const newState: typeof cardState = {}
+        const newMeta: typeof cardMeta = {}
+        for (const ex of data.examples) {
+          newState[ex.id] = {
+            exampleId: ex.id,
+            reviewSample: ex.review_sample,
+            aiResponse: ex.ai_response,
+          }
+          newMeta[ex.id] = metaForScenario(ex.scenario_type)
+        }
+        setCalibSessionId(data.sessionId)
+        setCardOrder(newOrder)
+        setCardState(newState)
+        setCardMeta(newMeta)
+        // Reset per-card decision state so any prior mock interactions don't leak
+        setAccepted(new Set())
+        setRejections({})
+        setCardLoading(new Set())
+        setCalibError(null)
         setCalibLoading(false)
         setCalibReady(true)
-      }, 3200),
-    ]
+      } catch (err) {
+        if (cancelled) return
+        console.error('POST /api/onboarding/calibrate threw:', err)
+        setCalibError('Network error — check your connection and try again.')
+        setCalibLoading(false)
+      }
+    }
+
+    run()
 
     return () => {
+      cancelled = true
       clearInterval(msgInterval)
-      timers.forEach(clearTimeout)
     }
-  }, [calibLoading])
+  }, [calibLoading, locationId])
 
   function startAnalysis() {
     setAnalysisLoading(true)
@@ -202,10 +304,9 @@ export default function OnboardingPage() {
   }
 
   function startCalibLoading() {
-    setCalibLoading(true)
+    setCalibError(null)
     setCalibReady(false)
-    setLoadingProgress(0)
-    setLoadingMsg(LOADING_MESSAGES[0])
+    setCalibLoading(true)
   }
 
   function validateStep2(): boolean {
@@ -219,7 +320,7 @@ export default function OnboardingPage() {
   function handleStep2Continue() {
     if (!validateStep2()) return
     goToStep(3)
-    setCalibReady(true)
+    startCalibLoading()
   }
 
   function handleAccept(id: string) {
@@ -244,7 +345,7 @@ export default function OnboardingPage() {
   async function patchCalibrationExample(
     exampleId: string,
     decision: 'rejected' | 'edited',
-    editedText?: string,
+    options: { editedText?: string; feedbackText?: string } = {},
   ): Promise<{ id: string; review_sample: string; ai_response: string } | null> {
     try {
       const res = await fetch('/api/onboarding/calibrate', {
@@ -253,7 +354,8 @@ export default function OnboardingPage() {
         body: JSON.stringify({
           exampleId,
           decision,
-          ...(editedText ? { editedText } : {}),
+          ...(options.editedText ? { editedText: options.editedText } : {}),
+          ...(options.feedbackText ? { feedbackText: options.feedbackText } : {}),
         }),
       })
       if (!res.ok) {
@@ -295,23 +397,24 @@ export default function OnboardingPage() {
   async function handleReject(localId: string) {
     if (cardLoading.has(localId)) return  // ignore double-clicks while in flight
     const state = cardState[localId]
-    if (!state) return
+    if (!state || !state.exampleId) return  // POST not yet successful — nothing real to PATCH against
 
     setCardLoadingFor(localId, true)
     try {
-      if (!state.exampleId) {
-        // Calibration session POST has not run yet — flag once per click so
-        // the dev/QA flow surfaces what's missing without breaking the UI.
-        console.warn(
-          `No real exampleId for card "${localId}" — POST /api/onboarding/calibrate has not been wired yet, so this PATCH will be skipped.`,
-        )
-      } else {
-        const newExample = await patchCalibrationExample(state.exampleId, 'rejected')
-        if (newExample) applyNewExample(localId, newExample)
+      const newExample = await patchCalibrationExample(state.exampleId, 'rejected')
+      if (newExample) {
+        // Re-key cardState/cardMeta around the new example UUID so subsequent
+        // interactions target the freshly inserted row. cardOrder swaps the
+        // old key for the new in-place so card position is preserved.
+        rekeyCard(localId, newExample)
       }
       // Bump rejection count regardless — the user's intent to reject stands
       // even if the regen failed. Two rejections still surface the feedback area.
-      setRejections((prev) => ({ ...prev, [localId]: (prev[localId] ?? 0) + 1 }))
+      // Use the new key if rekey happened, else the old.
+      setRejections((prev) => {
+        const key = newExample?.id ?? localId
+        return { ...prev, [key]: (prev[localId] ?? 0) + 1 }
+      })
     } finally {
       setCardLoadingFor(localId, false)
     }
@@ -320,34 +423,65 @@ export default function OnboardingPage() {
   async function handleFeedbackSubmit(localId: string) {
     if (cardLoading.has(localId)) return
     const state = cardState[localId]
-    if (!state) return
+    if (!state || !state.exampleId) return
 
-    // Capture the typed feedback. The PATCH endpoint's editedText field expects
-    // the owner's edited version of the AI response, NOT free-form feedback —
-    // so passing this as editedText would semantically corrupt the calibration
-    // examples table. Until the API grows a feedback field, we log it and send
-    // a plain 'rejected' decision. The UX still works (card regenerates).
+    // Read the typed feedback from the textarea so the regen prompt can
+    // incorporate the owner's note about what the previous response got wrong.
     const feedbackEl = document.getElementById(`feedback-${localId}`) as HTMLTextAreaElement | null
-    const feedbackText = feedbackEl?.value.trim() ?? ''
-    if (feedbackText) {
-      console.info(`Captured feedback for "${localId}" (not transmitted — API has no feedback field):`, feedbackText)
-    }
+    const feedbackText = feedbackEl?.value.trim() || undefined
 
     setCardLoadingFor(localId, true)
     try {
-      if (!state.exampleId) {
-        console.warn(
-          `No real exampleId for card "${localId}" — POST /api/onboarding/calibrate has not been wired yet, so this PATCH will be skipped.`,
-        )
-      } else {
-        const newExample = await patchCalibrationExample(state.exampleId, 'rejected')
-        if (newExample) applyNewExample(localId, newExample)
+      const newExample = await patchCalibrationExample(state.exampleId, 'rejected', { feedbackText })
+      if (newExample) {
+        rekeyCard(localId, newExample)
       }
-      // Reset rejection count so the feedback area hides
-      setRejections((prev) => ({ ...prev, [localId]: 0 }))
+      // Reset rejection count so the feedback area hides. After rekey the
+      // entry under the old key is gone; under the new key it never existed.
+      const newKey = newExample?.id ?? localId
+      setRejections((prev) => {
+        const next = { ...prev }
+        delete next[localId]
+        next[newKey] = 0
+        return next
+      })
     } finally {
       setCardLoadingFor(localId, false)
     }
+  }
+
+  // Replace the card identified by oldKey with a fresh row keyed by the new
+  // example UUID. Updates cardOrder (in-place), cardState, and cardMeta so
+  // every subsequent interaction targets the new id. The old key disappears
+  // from all three maps.
+  function rekeyCard(
+    oldKey: string,
+    newExample: { id: string; review_sample: string; ai_response: string },
+  ) {
+    if (newExample.id === oldKey) {
+      // Defensive — the API gives us a new UUID per regen, but if it ever
+      // returned the same id (e.g. some future idempotent path), just patch
+      // the content without re-keying.
+      applyNewExample(oldKey, newExample)
+      return
+    }
+    setCardOrder(prev => prev.map(k => k === oldKey ? newExample.id : k))
+    setCardState(prev => {
+      const next = { ...prev }
+      delete next[oldKey]
+      next[newExample.id] = {
+        exampleId: newExample.id,
+        reviewSample: newExample.review_sample,
+        aiResponse: newExample.ai_response,
+      }
+      return next
+    })
+    setCardMeta(prev => {
+      const next = { ...prev }
+      next[newExample.id] = next[oldKey]  // visual metadata stays the same — same scenario_type
+      delete next[oldKey]
+      return next
+    })
   }
 
   function handleFile(file: File) {
@@ -617,17 +751,28 @@ export default function OnboardingPage() {
       {currentStep === 3 && (
         <section className={styles.step} aria-label="Step 3: Calibration examples">
           {calibLoading && (
-            <div className={styles.calibLoading} role="status" aria-live="polite">
-              <div className={styles.calibLoadingInner}>
-                <div className={styles.calibLoadingBar}>
-                  <div className={styles.calibLoadingFill} style={{ width: `${loadingProgress}%` }} />
-                </div>
-                <p className={styles.calibLoadingText}>{loadingMsg}</p>
-              </div>
+            <div className={styles.calibPageLoading} role="status" aria-live="polite">
+              <span className={styles.calibPageSpinner} aria-hidden="true" />
+              <p className={styles.calibPageLoadingText}>{loadingMsg}</p>
+              <p className={styles.calibPageLoadingSub}>
+                Generating 6 sample responses in your voice. This usually takes 10–25 seconds.
+              </p>
             </div>
           )}
 
-          {calibReady && (
+          {calibError && !calibLoading && (
+            <div className={styles.calibErrorWrap} role="alert">
+              <p className={styles.calibErrorMsg}>{calibError}</p>
+              <button
+                className={`${styles.btn} ${styles.btnPrimary}`}
+                onClick={startCalibLoading}
+              >
+                Try again
+              </button>
+            </div>
+          )}
+
+          {calibReady && !calibLoading && !calibError && (
             <div>
               <div className={styles.calibrationProgress} role="status" aria-live="polite">
                 We generated sample responses based on your real reviews.<br />
@@ -637,28 +782,30 @@ export default function OnboardingPage() {
                 </span>
               </div>
 
-              {CALIBRATION_REVIEWS.map((review) => {
-                const isAccepted = accepted.has(review.id)
-                const live = cardState[review.id]  // current review_sample / ai_response, swapped after each regen
-                const rejectionCount = rejections[review.id] ?? 0
-                const isLoading = cardLoading.has(review.id)
+              {cardOrder.map((cardId) => {
+                const live = cardState[cardId]
+                const meta = cardMeta[cardId]
+                if (!live || !meta) return null  // defensive — should never happen with our state mgmt
+                const isAccepted = accepted.has(cardId)
+                const rejectionCount = rejections[cardId] ?? 0
+                const isLoading = cardLoading.has(cardId)
                 const starsClass =
-                  review.type === 'positive' ? styles.calibStarsPositive :
-                  review.type === 'mixed' ? styles.calibStarsMixed :
+                  meta.type === 'positive' ? styles.calibStarsPositive :
+                  meta.type === 'mixed' ? styles.calibStarsMixed :
                   styles.calibStarsNegative
                 const badgeClass =
-                  review.type === 'positive' ? styles.calibTypePositive :
-                  review.type === 'mixed' ? styles.calibTypeMixed :
+                  meta.type === 'positive' ? styles.calibTypePositive :
+                  meta.type === 'mixed' ? styles.calibTypeMixed :
                   styles.calibTypeNegative
 
                 return (
-                  <article key={review.id} className={`${styles.calibCard} ${isAccepted ? styles.calibCardAccepted : ''}`}>
+                  <article key={cardId} className={`${styles.calibCard} ${isAccepted ? styles.calibCardAccepted : ''}`}>
                     <div className={styles.calibHeader}>
-                      <span className={`${styles.calibStars} ${starsClass}`} aria-label={`${review.stars} stars`}>
-                        {starsDisplay(review.stars)}
+                      <span className={`${styles.calibStars} ${starsClass}`} aria-label={`${meta.stars} stars`}>
+                        {starsDisplay(meta.stars)}
                       </span>
                       <span className={`${styles.calibTypeBadge} ${badgeClass}`}>
-                        {review.type.charAt(0).toUpperCase() + review.type.slice(1)}
+                        {meta.type.charAt(0).toUpperCase() + meta.type.slice(1)}
                       </span>
                       {isAccepted && (
                         <span className={styles.calibAcceptedBadge} aria-hidden="true">
@@ -681,18 +828,18 @@ export default function OnboardingPage() {
                         </div>
                         {rejectionCount >= 2 && !isAccepted && (
                           <div className={styles.calibFeedback}>
-                            <label className={styles.calibFeedbackLabel} htmlFor={`feedback-${review.id}`}>
+                            <label className={styles.calibFeedbackLabel} htmlFor={`feedback-${cardId}`}>
                               What didn&apos;t feel right? The more you tell us, the better we&apos;ll match your voice.
                             </label>
                             <textarea
-                              id={`feedback-${review.id}`}
+                              id={`feedback-${cardId}`}
                               className={styles.calibFeedbackTextarea}
                               rows={2}
                               placeholder="Optional — skip if you prefer"
                             />
                             <button
                               className={`${styles.btn} ${styles.btnFeedbackSubmit}`}
-                              onClick={() => handleFeedbackSubmit(review.id)}
+                              onClick={() => handleFeedbackSubmit(cardId)}
                             >
                               Submit feedback
                             </button>
@@ -700,10 +847,10 @@ export default function OnboardingPage() {
                         )}
                         {!isAccepted && (
                           <div className={styles.calibActions}>
-                            <button className={`${styles.btn} ${styles.btnCalibOutline}`} onClick={() => handleAccept(review.id)}>
+                            <button className={`${styles.btn} ${styles.btnCalibOutline}`} onClick={() => handleAccept(cardId)}>
                               Looks good
                             </button>
-                            <button className={`${styles.btn} ${styles.btnCalibOutline}`} onClick={() => handleReject(review.id)}>
+                            <button className={`${styles.btn} ${styles.btnCalibOutline}`} onClick={() => handleReject(cardId)}>
                               Not quite
                             </button>
                           </div>
