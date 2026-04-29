@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { LogoFull } from '@/components/LogoFull'
 import styles from './onboarding.module.css'
@@ -70,7 +70,11 @@ function starsDisplay(count: number) {
   return '★'.repeat(count) + '☆'.repeat(5 - count)
 }
 
-export default function OnboardingPage() {
+// Next.js requires anything that calls useSearchParams() to live under a
+// Suspense boundary so the static prerender can produce a fallback shell
+// before client-only search params resolve. The default export below wraps
+// this component in <Suspense>.
+function OnboardingContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   // The OAuth callback (src/app/api/auth/google/callback/route.ts) drops the
@@ -1037,5 +1041,13 @@ export default function OnboardingPage() {
         </section>
       )}
     </main>
+  )
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <OnboardingContent />
+    </Suspense>
   )
 }
