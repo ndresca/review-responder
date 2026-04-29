@@ -312,21 +312,34 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
   const sessionId = session.id as string
 
-  // Generate all 6 examples in parallel
+  // Generate the 6 examples sequentially with a small delay between each.
+  // Bare Promise.all hammered OpenAI's tier limits and rejected the entire
+  // session on a single 429. Now: each call is awaited, errors are caught
+  // per-scenario (the rest still proceed), and we only fail the whole
+  // session if fewer than 3 examples succeed (calibration's >=3 gate would
+  // never be reachable below that anyway).
   const openai = buildOpenAI()
-  let outputs: (CalibrationOutput & { scenario: ScenarioType })[]
-  try {
-    const scenarios = getCalibrationScenarios(brandVoice.language)
-    const results = await Promise.all(
-      scenarios.map(async scenario => {
-        const output = await generateExample(openai, brandVoice, existingResponses, scenario)
-        return { ...output, scenario }
-      }),
+  const scenarios = getCalibrationScenarios(brandVoice.language)
+  const outputs: (CalibrationOutput & { scenario: ScenarioType })[] = []
+
+  for (let i = 0; i < scenarios.length; i++) {
+    const scenario = scenarios[i]
+    if (i > 0) await sleep(300)
+    try {
+      const output = await generateExample(openai, brandVoice, existingResponses, scenario)
+      outputs.push({ ...output, scenario })
+    } catch (err) {
+      console.error(`calibration: generateExample failed for scenario ${scenario}:`, err)
+      // Skip this scenario and continue with the next — partial generations
+      // are still useful as long as we end up with >=3.
+    }
+  }
+
+  if (outputs.length < 3) {
+    return NextResponse.json(
+      { error: `Generated only ${outputs.length} of ${scenarios.length} calibration examples — at least 3 are required to proceed. Try again in a moment.` },
+      { status: 502 },
     )
-    outputs = results
-  } catch (err) {
-    console.error('calibration generation failed:', err)
-    return NextResponse.json({ error: 'Failed to generate calibration examples' }, { status: 502 })
   }
 
   // Store all 6 in calibration_examples
