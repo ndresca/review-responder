@@ -803,6 +803,19 @@
   margin-bottom: 14px;
 }
 
+/* Inline edit shares the textarea + label classes with feedback. The
+   only thing different is the action row, which has Save AND Cancel
+   side-by-side instead of a single submit. */
+.calibEdit {
+  margin-bottom: 14px;
+}
+
+.calibEditActions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
 .calibFeedbackLabel {
   display: block;
   font-size: 13px;
