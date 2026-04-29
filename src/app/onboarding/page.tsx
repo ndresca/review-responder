@@ -865,31 +865,35 @@ function OnboardingContent() {
                         <span className={styles.calibSpinner} aria-hidden="true" />
                         <span className={styles.calibCardLoadingText}>Generating new response...</span>
                       </div>
+                    ) : rejectionCount >= 2 && !isAccepted ? (
+                      // After two rejections, the AI response and Looks good /
+                      // Not quite buttons hide and we surface the feedback
+                      // form. They re-appear once feedback is submitted (which
+                      // resets rejectionCount to 0 in handleFeedbackSubmit) so
+                      // the user evaluates the regenerated response cleanly.
+                      <div className={styles.calibFeedback}>
+                        <label className={styles.calibFeedbackLabel} htmlFor={`feedback-${cardId}`}>
+                          What didn&apos;t feel right? The more you tell us, the better we&apos;ll match your voice.
+                        </label>
+                        <textarea
+                          id={`feedback-${cardId}`}
+                          className={styles.calibFeedbackTextarea}
+                          rows={2}
+                          placeholder="Optional — skip if you prefer"
+                        />
+                        <button
+                          className={`${styles.btn} ${styles.btnFeedbackSubmit}`}
+                          onClick={() => handleFeedbackSubmit(cardId)}
+                        >
+                          Submit feedback
+                        </button>
+                      </div>
                     ) : (
                       <>
                         <div className={styles.calibResponseWrap}>
                           <div className={styles.calibResponseTag}>AI response</div>
                           <p className={styles.calibResponseBody}>{live.aiResponse}</p>
                         </div>
-                        {rejectionCount >= 2 && !isAccepted && (
-                          <div className={styles.calibFeedback}>
-                            <label className={styles.calibFeedbackLabel} htmlFor={`feedback-${cardId}`}>
-                              What didn&apos;t feel right? The more you tell us, the better we&apos;ll match your voice.
-                            </label>
-                            <textarea
-                              id={`feedback-${cardId}`}
-                              className={styles.calibFeedbackTextarea}
-                              rows={2}
-                              placeholder="Optional — skip if you prefer"
-                            />
-                            <button
-                              className={`${styles.btn} ${styles.btnFeedbackSubmit}`}
-                              onClick={() => handleFeedbackSubmit(cardId)}
-                            >
-                              Submit feedback
-                            </button>
-                          </div>
-                        )}
                         {!isAccepted && (
                           <div className={styles.calibActions}>
                             <button className={`${styles.btn} ${styles.btnCalibOutline}`} onClick={() => handleAccept(cardId)}>
