@@ -6,6 +6,14 @@
 }
 
 /* ── Paused banner ──────────────────────────────────────────────────── */
+/* Reserve banner space always so toggling pause doesn't shift the page.
+   The slot has fixed height; the inner banner uses visibility (not
+   display) so the layout space is reserved either way. */
+.pausedBannerSlot {
+  margin-top: 16px;
+  min-height: 42px;
+}
+
 .pausedBanner {
   font-family: var(--font-body);
   font-size: 13px;
@@ -14,7 +22,6 @@
   border: 1px solid rgba(200, 68, 15, 0.2);
   border-radius: var(--radius-md);
   padding: 10px 16px;
-  margin-top: 16px;
   text-align: center;
 }
 
@@ -83,14 +90,15 @@
 
 .textInput {
   font-family: var(--font-body);
-  font-size: 14px;
+  /* 16px minimum to prevent iOS Safari auto-zoom on focus. */
+  font-size: 16px;
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--border-med);
   border-radius: var(--radius-md);
   padding: 12px 14px;
   width: 100%;
-  line-height: 1.6;
+  line-height: 1.5;
   outline: none;
   transition: border-color 0.15s;
   -webkit-appearance: none;
@@ -154,88 +162,6 @@
 
 .disconnectLink:hover { opacity: 0.7; }
 .disconnectLink:focus-visible { outline: 2px solid var(--error); outline-offset: 3px; border-radius: 2px; }
-
-/* ── Brand voice ─────────────────────────────────────────────────────── */
-.voicePreview {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 16px;
-  margin-bottom: 16px;
-  position: relative;
-}
-
-.voiceText {
-  font-size: 14px;
-  color: var(--text);
-  line-height: 1.6;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.voiceEditInline {
-  font-size: 13px;
-  color: var(--accent);
-  text-decoration: none;
-  font-weight: 500;
-  margin-top: 8px;
-  display: inline-block;
-  transition: opacity 0.15s;
-}
-
-.voiceEditInline:hover { opacity: 0.7; }
-.voiceEditInline:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
-
-.voiceChips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-
-.voiceChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--muted);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 9999px;
-  padding: 5px 12px;
-}
-
-.voiceChipLabel {
-  font-weight: 600;
-  color: var(--text);
-  font-size: 11px;
-}
-
-.btnOutline {
-  font-family: var(--font-body);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--accent);
-  background: transparent;
-  border: 1.5px solid var(--accent);
-  border-radius: var(--radius-md);
-  padding: 10px 20px;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.btnOutline:hover {
-  background: rgba(181, 118, 10, 0.06);
-}
-
-.btnOutline:active { transform: scale(0.97); }
-.btnOutline:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 /* ── Notification toggles ────────────────────────────────────────────── */
 .toggleRow {
@@ -421,24 +347,18 @@
 }
 .cancelSubLink:hover { color: var(--text); }
 
-/* ── Voice edit form ───────────────────────────────────────────────── */
-.voiceEditForm {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-}
-
+/* ── Textarea + select (used by inline brand-voice edit) ──────────── */
 .textarea {
   font-family: var(--font-body);
-  font-size: 14px;
+  /* 16px minimum to prevent iOS Safari auto-zoom on focus. */
+  font-size: 16px;
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--border-med);
   border-radius: var(--radius-md);
   padding: 12px 14px;
   width: 100%;
-  line-height: 1.6;
+  line-height: 1.5;
   outline: none;
   transition: border-color 0.15s;
   resize: vertical;
@@ -448,7 +368,8 @@
 
 .selectInput {
   font-family: var(--font-body);
-  font-size: 14px;
+  /* 16px minimum to prevent iOS Safari auto-zoom on focus. */
+  font-size: 16px;
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--border-med);
@@ -465,28 +386,6 @@
   padding-right: 36px;
 }
 .selectInput:focus { border-color: var(--accent); }
-
-.voiceEditActions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-top: 8px;
-}
-
-.btnAmberSmall {
-  font-family: var(--font-body);
-  font-size: 13px;
-  font-weight: 600;
-  background: var(--accent);
-  color: white;
-  border: none;
-  border-radius: var(--radius-md);
-  padding: 8px 20px;
-  cursor: pointer;
-  transition: opacity 0.15s;
-  -webkit-tap-highlight-color: transparent;
-}
-.btnAmberSmall:hover { opacity: 0.88; }
 
 /* ── Time picker ───────────────────────────────────────────────────── */
 .timeField {
@@ -567,8 +466,48 @@
 .dialogActions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 12px;
 }
+
+/* Dialog buttons — matched in size and weight, neither full-width.
+   .btnDialogPrimary is the visually dominant ("Keep" / "Cancel") action;
+   .btnDialogSecondary is the de-emphasised confirm path so users don't
+   accidentally tap through. */
+.btnDialogPrimary {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 9px 18px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btnDialogPrimary:hover { opacity: 0.88; }
+.btnDialogPrimary:disabled { opacity: 0.55; cursor: default; }
+
+.btnDialogSecondary {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  border: 1.5px solid var(--border-med);
+  border-radius: var(--radius-md);
+  padding: 7.5px 18px; /* slightly less to compensate for the border so heights match */
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btnDialogSecondary:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+.btnDialogSecondary:disabled { opacity: 0.55; cursor: default; }
 
 /* ── Save / amber buttons ──────────────────────────────────────────── */
 .saveWrap {
@@ -592,29 +531,41 @@
   -webkit-tap-highlight-color: transparent;
 }
 .btnAmber:hover { opacity: 0.88; }
+.btnAmber:disabled { opacity: 0.7; cursor: default; }
 
-.btnDialogMuted {
-  font-family: var(--font-body);
+.saveError {
   font-size: 13px;
-  color: var(--muted);
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  transition: color 0.15s;
+  color: var(--error);
+  margin: 0 0 8px;
+  text-align: center;
 }
-.btnDialogMuted:hover { color: var(--text); }
+
+/* "Canceled" badge that replaces the cancel button after successful cancellation */
+.canceledBadge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border: 1px solid var(--border-med);
+  border-radius: 9999px;
+  white-space: nowrap;
+}
 
 .btnDanger {
   font-family: var(--font-body);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   background: var(--error);
   color: white;
   border: none;
   border-radius: var(--radius-md);
-  padding: 8px 20px;
+  padding: 9px 18px;
   cursor: pointer;
   transition: opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
 }
 .btnDanger:hover { opacity: 0.88; }
+.btnDanger:disabled { opacity: 0.55; cursor: default; }

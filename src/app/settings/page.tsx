@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useCallback, useRef, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import styles from './settings.module.css'
 
 const HOURS = [
@@ -10,11 +10,22 @@ const HOURS = [
   '6:00 PM', '7:00 PM', '8:00 PM', '9:00 PM',
 ]
 
+// Hour string → 0–23 index for digest_time. The mock seed uses index 2 = 8am.
+function hourIdxToTime(idx: number): number {
+  // HOURS starts at 6am, so index 0 = 6, index 1 = 7, etc.
+  return 6 + idx
+}
+
+// TODO(load-endpoint): the page currently seeds from this hardcoded mock.
+// Once GET /api/settings/load is wired, replace INITIAL with whatever the
+// endpoint returns for the user's first location. handleSave will then
+// update real DB rows; right now it overwrites them with this mock if the
+// user clicks save without editing.
 const INITIAL = {
   restaurantName: 'Cafe Luna',
-  brandVoice: 'We\'re a neighbourhood Italian spot that\'s been here since 2012. Regulars call us by name. We\'re warm but not cheesy, local but not provincial. We never say "we apologise for any inconvenience" because that\'s not how real people talk. We say thanks like we mean it and own mistakes without corporate speak.',
   personality: 'warm, local, slightly cheeky',
   avoid: 'We apologise for any inconvenience',
+  signaturePhrasesText: 'see you soon!, come back and see us',
   language: 'en',
   daily: true,
   weekly: false,
@@ -23,10 +34,7 @@ const INITIAL = {
 }
 
 function Toggle({
-  id,
-  checked,
-  onChange,
-  label,
+  id, checked, onChange, label,
 }: {
   id: string
   checked: boolean
@@ -49,14 +57,16 @@ function Toggle({
   )
 }
 
-export default function SettingsPage() {
+function SettingsContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const locationId = searchParams.get('locationId')
 
-  // Form state
+  // Form state — all editable inline, all dirty-tracked.
   const [restaurantName, setRestaurantName] = useState(INITIAL.restaurantName)
-  const [brandVoice, setBrandVoice] = useState(INITIAL.brandVoice)
   const [personality, setPersonality] = useState(INITIAL.personality)
   const [avoid, setAvoid] = useState(INITIAL.avoid)
+  const [signaturePhrasesText, setSignaturePhrasesText] = useState(INITIAL.signaturePhrasesText)
   const [language, setLanguage] = useState(INITIAL.language)
   const [daily, setDaily] = useState(INITIAL.daily)
   const [weekly, setWeekly] = useState(INITIAL.weekly)
@@ -65,32 +75,41 @@ export default function SettingsPage() {
 
   // UI state
   const [paused, setPaused] = useState(false)
-  const [editingVoice, setEditingVoice] = useState(false)
-  const [editVoice, setEditVoice] = useState(brandVoice)
-  const [editPersonality, setEditPersonality] = useState(personality)
-  const [editAvoid, setEditAvoid] = useState(avoid)
-  const [editLanguage, setEditLanguage] = useState(language)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showCancelSub, setShowCancelSub] = useState(false)
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
 
-  // Saved snapshot for dirty checking
+  // Save flow
+  const [saving, setSaving] = useState(false)
+  const [savedFlash, setSavedFlash] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  // Cancel-subscription flow
+  const [cancelingSubInFlight, setCancelingSubInFlight] = useState(false)
+  const [subCanceled, setSubCanceled] = useState(false)
+
+  // Delete-account flow
+  const [deleting, setDeleting] = useState(false)
+
+  // Saved snapshot for dirty checking. Bumping savedVersion forces re-render
+  // after save without the previous setRestaurantName(restaurantName) hack.
   const savedRef = useRef({ ...INITIAL })
+  const [, setSavedVersion] = useState(0)
 
   const isDirty = useCallback(() => {
     const s = savedRef.current
     return (
       restaurantName !== s.restaurantName ||
-      brandVoice !== s.brandVoice ||
       personality !== s.personality ||
       avoid !== s.avoid ||
+      signaturePhrasesText !== s.signaturePhrasesText ||
       language !== s.language ||
       daily !== s.daily ||
       weekly !== s.weekly ||
       lowAlert !== s.lowAlert ||
       hourIdx !== s.hourIdx
     )
-  }, [restaurantName, brandVoice, personality, avoid, language, daily, weekly, lowAlert, hourIdx])
+  }, [restaurantName, personality, avoid, signaturePhrasesText, language, daily, weekly, lowAlert, hourIdx])
 
   function handleDaily(on: boolean) {
     setDaily(on)
@@ -102,13 +121,65 @@ export default function SettingsPage() {
     if (on) setDaily(false)
   }
 
-  function handleSave() {
-    savedRef.current = {
-      restaurantName, brandVoice, personality, avoid, language,
-      daily, weekly, lowAlert, hourIdx,
+  // Parses the comma-separated phrases input into a clean string[] for the API.
+  function parseSignaturePhrases(raw: string): string[] {
+    return raw.split(',').map(s => s.trim()).filter(Boolean)
+  }
+
+  async function handleSave() {
+    if (saving) return
+    setSaveError(null)
+
+    if (!locationId) {
+      setSaveError('Missing location — open settings via the dashboard so we know which restaurant to save.')
+      return
     }
-    // Force re-render to hide save button
-    setRestaurantName(restaurantName)
+
+    const frequency: 'daily' | 'weekly' | undefined =
+      daily ? 'daily' : weekly ? 'weekly' : undefined
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+
+    setSaving(true)
+    try {
+      const res = await fetch('/api/settings/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          locationId,
+          personality,
+          avoid,
+          signaturePhrases: parseSignaturePhrases(signaturePhrasesText),
+          language,
+          frequency,
+          digestDay: frequency === 'weekly' ? 1 : null, // Monday default; surface a day picker in a follow-up
+          digestTime: hourIdxToTime(hourIdx),
+          timezone,
+        }),
+      })
+
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        console.error(`POST /api/settings/save failed: HTTP ${res.status}`, body)
+        setSaveError(res.status === 401 ? 'Sign in again to save changes.' : 'Couldn\'t save. Try again.')
+        return
+      }
+
+      // Snapshot current values as the new saved baseline so isDirty() flips false.
+      savedRef.current = {
+        restaurantName, personality, avoid, signaturePhrasesText, language,
+        daily, weekly, lowAlert, hourIdx,
+      }
+      setSavedVersion(v => v + 1)
+
+      // Briefly flash "Saved" — 2s as specified.
+      setSavedFlash(true)
+      setTimeout(() => setSavedFlash(false), 2000)
+    } catch (err) {
+      console.error('POST /api/settings/save threw:', err)
+      setSaveError('Network error — check your connection and try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   function handleBackClick(e: React.MouseEvent) {
@@ -118,9 +189,9 @@ export default function SettingsPage() {
     }
   }
 
-  function handleUnsavedSave() {
-    handleSave()
+  async function handleUnsavedSave() {
     setShowUnsavedDialog(false)
+    await handleSave()
     router.push('/dashboard')
   }
 
@@ -129,36 +200,67 @@ export default function SettingsPage() {
     router.push('/dashboard')
   }
 
-  function startEditVoice() {
-    setEditVoice(brandVoice)
-    setEditPersonality(personality)
-    setEditAvoid(avoid)
-    setEditLanguage(language)
-    setEditingVoice(true)
+  async function handleCancelSubscription() {
+    if (cancelingSubInFlight) return
+    if (!locationId) {
+      console.error('cancel-subscription aborted: missing locationId')
+      return
+    }
+    setCancelingSubInFlight(true)
+    try {
+      const res = await fetch('/api/settings/cancel-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locationId }),
+      })
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        console.error(`POST /api/settings/cancel-subscription failed: HTTP ${res.status}`, body)
+        return
+      }
+      setSubCanceled(true)
+      setShowCancelSub(false)
+    } catch (err) {
+      console.error('POST /api/settings/cancel-subscription threw:', err)
+    } finally {
+      setCancelingSubInFlight(false)
+    }
   }
 
-  function saveVoiceEdit() {
-    setBrandVoice(editVoice)
-    setPersonality(editPersonality)
-    setAvoid(editAvoid)
-    setLanguage(editLanguage)
-    setEditingVoice(false)
-  }
-
-  function cancelVoiceEdit() {
-    setEditingVoice(false)
+  async function handleDeleteAccount() {
+    if (deleting) return
+    setDeleting(true)
+    try {
+      const res = await fetch('/api/settings/delete-account', { method: 'DELETE' })
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        console.error(`DELETE /api/settings/delete-account failed: HTTP ${res.status}`, body)
+        setDeleting(false)
+        return
+      }
+      // Account is gone — go to landing page. Cookie was cleared by the route.
+      window.location.href = '/'
+    } catch (err) {
+      console.error('DELETE /api/settings/delete-account threw:', err)
+      setDeleting(false)
+    }
   }
 
   const digestTime = HOURS[hourIdx]
 
   return (
     <main className={styles.page}>
-      {/* Paused banner */}
-      {paused && (
-        <div className={styles.pausedBanner} role="alert">
+      {/* Paused banner — always rendered with a fixed-height slot to prevent
+          layout shift when toggling pause. Visibility flips, height stays. */}
+      <div
+        className={styles.pausedBannerSlot}
+        style={paused ? undefined : { visibility: 'hidden' }}
+        role="alert"
+      >
+        <div className={styles.pausedBanner}>
           Auto-posting is paused. Reviews are not being responded to.
         </div>
-      )}
+      </div>
 
       {/* Back nav */}
       <nav className={styles.backNav} aria-label="Navigation">
@@ -181,8 +283,8 @@ export default function SettingsPage() {
           <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
             <p className={styles.dialogText}>You have unsaved changes. Save before leaving?</p>
             <div className={styles.dialogActions}>
-              <button className={styles.btnAmber} onClick={handleUnsavedSave}>Save</button>
-              <button className={styles.btnDialogMuted} onClick={handleUnsavedDiscard}>Discard</button>
+              <button className={styles.btnDialogPrimary} onClick={handleUnsavedSave}>Save</button>
+              <button className={styles.btnDialogSecondary} onClick={handleUnsavedDiscard}>Discard</button>
             </div>
           </div>
         </div>
@@ -220,96 +322,66 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {/* Section 2: Brand voice */}
+      {/* Section 2: Brand voice — fully inline-editable, no modal */}
       <section className={styles.settingsSection} aria-label="Brand voice">
         <h2 className={styles.sectionLabel}>Brand voice</h2>
 
-        {!editingVoice ? (
-          <>
-            <div className={styles.voicePreview}>
-              <p className={styles.voiceText}>{brandVoice}</p>
-            </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel} htmlFor="personality">Personality</label>
+          <input
+            type="text"
+            id="personality"
+            className={styles.textInput}
+            value={personality}
+            onChange={(e) => setPersonality(e.target.value)}
+            autoComplete="off"
+          />
+        </div>
 
-            <div className={styles.voiceChips}>
-              <span className={styles.voiceChip}>
-                <span className={styles.voiceChipLabel}>Personality</span>
-                {personality || 'Not set'}
-              </span>
-              <span className={styles.voiceChip}>
-                <span className={styles.voiceChipLabel}>Avoid</span>
-                {avoid ? `"${avoid}"` : 'Not set'}
-              </span>
-              <span className={styles.voiceChip}>
-                <span className={styles.voiceChipLabel}>Language</span>
-                {language === 'en' ? 'English' : language === 'es' ? 'Spanish' : language === 'fr' ? 'French' : language === 'it' ? 'Italian' : language === 'de' ? 'German' : language === 'pt' ? 'Portuguese' : language === 'ja' ? 'Japanese' : language === 'zh' ? 'Mandarin' : language === 'ar' ? 'Arabic' : language}
-              </span>
-            </div>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel} htmlFor="avoid">Phrases to avoid</label>
+          <input
+            type="text"
+            id="avoid"
+            className={styles.textInput}
+            value={avoid}
+            onChange={(e) => setAvoid(e.target.value)}
+            autoComplete="off"
+          />
+        </div>
 
-            <button className={styles.btnOutline} onClick={startEditVoice} aria-label="Edit brand voice settings">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-              </svg>
-              Edit brand voice
-            </button>
-          </>
-        ) : (
-          <div className={styles.voiceEditForm}>
-            <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="edit-voice">Your brand voice</label>
-              <textarea
-                id="edit-voice"
-                rows={5}
-                className={styles.textarea}
-                value={editVoice}
-                onChange={(e) => setEditVoice(e.target.value)}
-              />
-            </div>
-            <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="edit-personality">Personality</label>
-              <input
-                type="text"
-                id="edit-personality"
-                className={styles.textInput}
-                value={editPersonality}
-                onChange={(e) => setEditPersonality(e.target.value)}
-              />
-            </div>
-            <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="edit-avoid">Phrases to avoid</label>
-              <input
-                type="text"
-                id="edit-avoid"
-                className={styles.textInput}
-                value={editAvoid}
-                onChange={(e) => setEditAvoid(e.target.value)}
-              />
-            </div>
-            <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="edit-language">Primary language</label>
-              <select
-                id="edit-language"
-                className={styles.selectInput}
-                value={editLanguage}
-                onChange={(e) => setEditLanguage(e.target.value)}
-              >
-                <option value="en">English</option>
-                <option value="es">Spanish</option>
-                <option value="fr">French</option>
-                <option value="pt">Portuguese</option>
-                <option value="it">Italian</option>
-                <option value="de">German</option>
-                <option value="ja">Japanese</option>
-                <option value="zh">Mandarin</option>
-                <option value="ar">Arabic</option>
-              </select>
-            </div>
-            <div className={styles.voiceEditActions}>
-              <button className={styles.btnAmberSmall} onClick={saveVoiceEdit}>Save</button>
-              <button className={styles.btnDialogMuted} onClick={cancelVoiceEdit}>Cancel</button>
-            </div>
-          </div>
-        )}
+        <div className={styles.field}>
+          <label className={styles.fieldLabel} htmlFor="signature-phrases">Signature phrases</label>
+          <input
+            type="text"
+            id="signature-phrases"
+            className={styles.textInput}
+            value={signaturePhrasesText}
+            onChange={(e) => setSignaturePhrasesText(e.target.value)}
+            autoComplete="off"
+            placeholder="comma-separated"
+          />
+        </div>
+
+        <div className={styles.field}>
+          <label className={styles.fieldLabel} htmlFor="language">Primary language</label>
+          <select
+            id="language"
+            className={styles.selectInput}
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+          >
+            <option value="en">English</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="pt">Portuguese</option>
+            <option value="it">Italian</option>
+            <option value="de">German</option>
+            <option value="ja">Japanese</option>
+            <option value="zh">Mandarin</option>
+            <option value="ar">Arabic</option>
+          </select>
+        </div>
       </section>
 
       {/* Section 3: Notifications */}
@@ -388,11 +460,19 @@ export default function SettingsPage() {
         <div className={styles.dangerRow}>
           <div className={styles.dangerInfo}>
             <span className={styles.dangerActionLabel}>Cancel subscription</span>
-            <span className={styles.dangerSub}>Your access continues until the end of your billing period.</span>
+            <span className={styles.dangerSub}>
+              {subCanceled
+                ? 'Your subscription has been canceled. You\'ll retain access until the end of your billing period.'
+                : 'Your access continues until the end of your billing period.'}
+            </span>
           </div>
-          <button className={styles.cancelSubLink} onClick={() => setShowCancelSub(true)}>
-            Cancel subscription
-          </button>
+          {subCanceled ? (
+            <span className={styles.canceledBadge} aria-label="Subscription canceled">Canceled</span>
+          ) : (
+            <button className={styles.cancelSubLink} onClick={() => setShowCancelSub(true)}>
+              Cancel subscription
+            </button>
+          )}
         </div>
 
         <div className={`${styles.dangerRow} ${styles.dangerRowLast}`}>
@@ -400,41 +480,59 @@ export default function SettingsPage() {
             <span className={styles.dangerActionLabel}>Delete account</span>
             <span className={styles.dangerSub}>This permanently removes your account and all data.</span>
           </div>
-          <button className={styles.deleteLink} onClick={() => setShowDeleteConfirm(true)} aria-label="Delete account">
+          {/* Visually de-emphasised — the delete affordance shouldn't be more
+              prominent than cancel-subscription. The actual destructive
+              action lives behind the confirmation dialog (.btnDanger). */}
+          <button className={styles.cancelSubLink} onClick={() => setShowDeleteConfirm(true)} aria-label="Delete account">
             Delete account
           </button>
         </div>
       </section>
 
-      {/* Save changes button — only when dirty */}
-      {isDirty() && (
+      {/* Save changes button — sticky, only when dirty (or while flashing
+          "Saved" so the success state is visible). */}
+      {(isDirty() || savedFlash || saveError) && (
         <div className={styles.saveWrap}>
-          <button className={styles.btnAmber} onClick={handleSave}>
-            Save changes
+          {saveError && <p className={styles.saveError}>{saveError}</p>}
+          <button
+            className={styles.btnAmber}
+            onClick={handleSave}
+            disabled={saving || savedFlash}
+          >
+            {savedFlash ? 'Saved ✓' : saving ? 'Saving...' : 'Save changes'}
           </button>
         </div>
       )}
 
-      {/* Cancel subscription dialog */}
+      {/* Cancel subscription dialog. Per spec the "Keep" button is visually
+          dominant — pulling someone back from accidental cancellation. */}
       {showCancelSub && (
         <div className={styles.dialogOverlay} onClick={() => setShowCancelSub(false)}>
           <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
             <p className={styles.dialogText}>
-              Your subscription will end at the close of your current billing period.
+              Your subscription will be canceled. You&apos;ll retain access until the end of your billing period.
             </p>
             <div className={styles.dialogActions}>
-              <button className={styles.btnMutedOutline} onClick={() => setShowCancelSub(false)}>
-                Confirm cancellation
-              </button>
-              <button className={styles.btnAmberSmall} onClick={() => setShowCancelSub(false)}>
+              <button
+                className={styles.btnDialogPrimary}
+                onClick={() => setShowCancelSub(false)}
+              >
                 Keep subscription
+              </button>
+              <button
+                className={styles.btnDialogSecondary}
+                onClick={handleCancelSubscription}
+                disabled={cancelingSubInFlight}
+              >
+                {cancelingSubInFlight ? 'Canceling...' : 'Confirm cancellation'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete account dialog */}
+      {/* Delete account dialog. Destructive confirm uses .btnDanger; the
+          dismiss button is visually dominant per spec. */}
       {showDeleteConfirm && (
         <div className={styles.dialogOverlay} onClick={() => setShowDeleteConfirm(false)}>
           <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
@@ -442,16 +540,31 @@ export default function SettingsPage() {
               This will permanently delete your account and all data. This cannot be undone.
             </p>
             <div className={styles.dialogActions}>
-              <button className={styles.btnDanger} onClick={() => setShowDeleteConfirm(false)}>
-                Delete my account
-              </button>
-              <button className={styles.btnDialogMuted} onClick={() => setShowDeleteConfirm(false)}>
+              <button
+                className={styles.btnDialogPrimary}
+                onClick={() => setShowDeleteConfirm(false)}
+              >
                 Cancel
+              </button>
+              <button
+                className={styles.btnDanger}
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+              >
+                {deleting ? 'Deleting...' : 'Delete my account'}
               </button>
             </div>
           </div>
         </div>
       )}
     </main>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SettingsContent />
+    </Suspense>
   )
 }
