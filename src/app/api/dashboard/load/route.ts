@@ -1,36 +1,28 @@
-import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-import { getValidSession } from '@/lib/session'
-
-function buildServiceSupabase() {
-  const url = process.env.SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required')
-  return createClient(url, key, { auth: { persistSession: false } })
-}
+import { getAuthedSupabase } from '@/lib/session'
 
 // Returns the dashboard's data shape:
 //   { locationId, locationName, autoPostEnabled, weeklyPostedCount,
 //     recentResponses: [{ reviewId, reviewerName, rating, reviewText,
 //                         responseText, status, postedAt }] }
 //
+// Uses a user-scoped Supabase client (anon key + sb-* cookies) so RLS
+// policies enforce row-level access automatically. If a future change
+// accidentally drops an owner_id filter, RLS catches it instead of
+// leaking another user's data.
+//
 // Multi-location accounts get the oldest location only (matches settings/load).
-// Brand voice / responses are best-effort — a missing brand_voices row defaults
-// autoPostEnabled to false rather than 500ing.
 export async function GET(): Promise<NextResponse> {
-  const cookieStore = await cookies()
-  const session = await getValidSession(cookieStore)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const ownerId = session.ownerId
+  const authed = await getAuthedSupabase()
+  if (!authed) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { supabase } = authed
 
-  const supabase = buildServiceSupabase()
-
-  // 1. Owner's first location.
+  // 1. Owner's first location. RLS policy "auth.uid() = owner_id" scopes
+  //    this to the caller's locations automatically — owner_id filter is
+  //    redundant but kept as belt-and-suspenders.
   const { data: location, error: locErr } = await supabase
     .from('locations')
     .select('id, name')
-    .eq('owner_id', ownerId)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle()
@@ -41,9 +33,6 @@ export async function GET(): Promise<NextResponse> {
   }
 
   if (!location) {
-    // No location yet — return an empty shape the page can render. The
-    // middleware blocks unauthenticated traffic; if we get here, the user
-    // is signed in but onboarding never finished.
     return NextResponse.json({
       locationId: null,
       locationName: null,
@@ -56,12 +45,9 @@ export async function GET(): Promise<NextResponse> {
   const locationId = location.id as string
   const sevenDaysAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
-  // 2/3/4. Brand voice (auto_post_enabled), weekly count, and the last 5
-  // posted responses, all in parallel. responses_posted has no created_at —
-  // posted_at is the only timestamp on the row, and it's null until status
-  // flips to 'posted'. Both the count and the list filter to status='posted'
-  // so failed/blocked rows don't pollute the dashboard's "recent activity"
-  // story.
+  // 2/3/4. Brand voice (auto_post_enabled), weekly count, last 5 posted
+  // responses — in parallel. responses_posted has no created_at; posted_at
+  // is the only timestamp on the row, null until status='posted'.
   const [bvResult, weeklyResult, recentResult] = await Promise.all([
     supabase
       .from('brand_voices')
@@ -99,7 +85,7 @@ export async function GET(): Promise<NextResponse> {
   // 5. Hydrate review metadata (reviewer_name, rating, review_text) for each
   //    recent response. responses_posted.review_id is the google_review_id;
   //    the join key on the reviews table is (location_id, google_review_id).
-  //    No Supabase nested-select FK relationship to lean on, so we do it in JS.
+  //    No FK relationship to lean on, so we do it in JS.
   type ReviewMetaRow = {
     google_review_id: string
     reviewer_name: string

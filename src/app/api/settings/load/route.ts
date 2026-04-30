@@ -1,36 +1,27 @@
-import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-import { getValidSession } from '@/lib/session'
-
-function buildServiceSupabase() {
-  const url = process.env.SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required')
-  return createClient(url, key, { auth: { persistSession: false } })
-}
+import { getAuthedSupabase } from '@/lib/session'
 
 // Returns the owner's settings shape used by the settings page on mount:
 // { locationId, restaurantName, brandVoice: {...}, notifications: {...},
-//   subscription: { status, cancelAtPeriodEnd } }.
+//   subscription: { status, currentPeriodEnd }, autoPostEnabled }.
+//
+// Uses a user-scoped Supabase client (anon key + sb-* cookies) so RLS
+// policies enforce row-level access automatically. The owner_id filter
+// is implicit via RLS.
 //
 // "First location" — multi-location accounts get the oldest by created_at.
 // brandVoice and notifications fall back to nulls if the rows don't exist
 // yet (which can happen if the user skipped golive); the page seeds defaults
 // from those nulls.
 export async function GET(): Promise<NextResponse> {
-  const cookieStore = await cookies()
-  const session = await getValidSession(cookieStore)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const ownerId = session.ownerId
-
-  const supabase = buildServiceSupabase()
+  const authed = await getAuthedSupabase()
+  if (!authed) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { supabase } = authed
 
   // Find the owner's first (oldest) location.
   const { data: location, error: locErr } = await supabase
     .from('locations')
     .select('id, name, google_location_id')
-    .eq('owner_id', ownerId)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle()
