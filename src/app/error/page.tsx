@@ -113,10 +113,10 @@ function ErrorContent() {
               {variant.primary.label}
             </a>
           )}
-          {/* When applicable, render contact-support as a separate, equally
-              prominent button — never as "or contact support" inline text. */}
+          {/* Contact-support is a small muted text link below the primary —
+              available without competing visually with the main action. */}
           {variant.showSupportFallback && (
-            <a href={SUPPORT_MAILTO} className={styles.btnSecondary}>
+            <a href={SUPPORT_MAILTO} className={styles.supportLink}>
               Contact support
             </a>
           )}
