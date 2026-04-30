@@ -1,21 +1,26 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-// Auth gate: /dashboard/* and /settings/* require an autoplier_session cookie
-// (set by src/app/api/auth/google/callback/route.ts after a successful OAuth
-// round-trip). Unauthenticated requests redirect to /onboarding so the user
-// re-enters the connect flow rather than landing on a blank page.
+// Auth gate: /dashboard/*, /settings/*, /history/* require a Supabase auth
+// JWT cookie (sb-<project-ref>-auth-token, set by the OAuth callback after
+// JWT minting). Unauthenticated requests redirect to /onboarding so the
+// user re-enters the connect flow rather than landing on a blank page.
 //
-// All other routes pass through — landing, onboarding, the API routes (which
-// do their own per-route cookie checks), the error page, etc.
+// Edge-runtime presence check only — we don't validate the JWT signature
+// here (avoid pulling jose / supabase-ssr into the edge bundle for every
+// request). The full validation happens at the route level via
+// getValidSession (which calls Supabase auth.getUser to verify signature
+// + user existence). The middleware is just a UX gate to keep obvious
+// unauthenticated traffic out without DB latency.
 export function middleware(request: NextRequest) {
-  const sessionCookie = request.cookies.get('autoplier_session')
-  // Shape check at the edge — bail on missing/empty/non-UUID values without
-  // calling the API. The full validation (does the user actually exist?)
-  // happens in route-level getValidSession; the middleware just keeps the
-  // obvious garbage out without DB latency. UUID v4 is 36 chars including
-  // hyphens — 8-4-4-4-12.
-  if (sessionCookie?.value && sessionCookie.value.length === 36) {
+  // Cookie name format is `sb-<project-ref>-auth-token` (or `.0`/`.1` chunks
+  // for large sessions). Match any cookie that starts with `sb-` and ends
+  // with `-auth-token` (with optional .N suffix). Presence-only check.
+  const hasSupabaseAuth = request.cookies.getAll().some(c =>
+    /^sb-.+-auth-token(\.\d+)?$/.test(c.name) && c.value.length > 0
+  )
+
+  if (hasSupabaseAuth) {
     return NextResponse.next()
   }
 
@@ -30,8 +35,6 @@ export function middleware(request: NextRequest) {
 
 // matcher restricts which routes the middleware runs on. Keeping this narrow
 // avoids unnecessary edge-runtime overhead on routes that don't need the gate.
-// /history is added so unauthenticated traffic redirects at the edge instead
-// of rendering a broken loading state and 401ing from the API.
 export const config = {
   matcher: ['/dashboard/:path*', '/settings/:path*', '/history/:path*'],
 }

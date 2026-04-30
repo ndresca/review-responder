@@ -112,15 +112,22 @@ export async function DELETE(): Promise<NextResponse> {
     return NextResponse.json({ error: 'Failed to remove account.' }, { status: 500 })
   }
 
-  // 5. Clear the session cookie so the client is logged out on the redirect.
+  // 5. Clear the sb-* auth cookies so the client is logged out on the
+  //    redirect. The auth user has already been deleted above, so any cached
+  //    JWT would fail validation on the next request anyway — this is a
+  //    courtesy to keep the browser state clean.
   const response = NextResponse.json({ success: true })
-  response.cookies.set('autoplier_session', '', {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 0,
-    path: '/',
-  })
+  for (const c of cookieStore.getAll()) {
+    if (/^sb-.+-auth-token(\.\d+)?$/.test(c.name)) {
+      response.cookies.set(c.name, '', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 0,
+        path: '/',
+      })
+    }
+  }
 
   return response
 }

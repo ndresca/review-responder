@@ -471,18 +471,6 @@ export async function GET(request: Request): Promise<NextResponse> {
     return redirectError('config')
   }
 
-  // ── 6b. Lightweight session cookie (legacy — still used by write routes) ─
-  // Several write routes still read autoplier_session for ownerId. Keeping
-  // it set alongside the sb-* cookies until those routes migrate to the
-  // user-context client.
-  response.cookies.set('autoplier_session', ownerId, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 60 * 60 * 24 * 30, // 30 days
-    path: '/',
-  })
-
   response.cookies.set(STATE_COOKIE, '', {
     httpOnly: true,
     sameSite: 'lax',
