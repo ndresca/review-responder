@@ -322,27 +322,25 @@ function SettingsContent() {
     router.push('/dashboard')
   }
 
-  // Pause/Resume — calls the shared toggle endpoint and reconciles paused
-  // from the server's authoritative response. Optimistic flip on click so
-  // the button feels instant; rolled back on failure.
+  // Pause/Resume — server-authoritative, no optimistic flip. The label and
+  // sub-text in .dangerInfo continue to show the current state during the
+  // request; only the button itself shows "..." until the API returns.
+  // paused is updated only after a successful response. On error we leave
+  // paused untouched (no rollback needed since we never flipped).
   async function handleToggleAutoPost() {
     if (pauseToggling) return
-    const previousPaused = paused
-    setPaused(!previousPaused)
     setPauseToggling(true)
     try {
       const res = await fetch('/api/settings/toggle-auto-post', { method: 'POST' })
       if (!res.ok) {
         const body = await res.text().catch(() => '')
         console.error(`POST /api/settings/toggle-auto-post failed: HTTP ${res.status}`, body)
-        setPaused(previousPaused)
         return
       }
       const json = (await res.json()) as { autoPostEnabled: boolean }
       setPaused(!json.autoPostEnabled)
     } catch (err) {
       console.error('POST /api/settings/toggle-auto-post threw:', err)
-      setPaused(previousPaused)
     } finally {
       setPauseToggling(false)
     }
