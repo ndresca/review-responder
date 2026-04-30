@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from '@/lib/sanitize'
 import type { BrandVoice, Review } from '@/lib/types'
 
 /**
@@ -24,8 +25,17 @@ export function buildQualityCheckPrompt(
   generatedResponse: string,
   review: Review,
 ): string {
+  // Owner-controlled fields are sanitized before interpolation. Reviewer-
+  // supplied fields (review.text, review.reviewer_name) come from Google's
+  // GBP API and are NOT sanitized — they're external strings the owner
+  // doesn't control, and silently modifying them could mangle legitimate
+  // review content that the quality check needs to evaluate accurately.
+  const personality = sanitizeForPrompt(brandVoice.personality)
+  const avoid = sanitizeForPrompt(brandVoice.avoid)
+  const ownerDesc = sanitizeForPrompt(brandVoice.owner_description ?? '')
+
   const forbiddenList = [
-    brandVoice.avoid,
+    avoid,
     'we take your feedback seriously',
     'thank you for your review',
   ]
@@ -39,8 +49,8 @@ Your job: decide whether the response is safe to post.
 
 RESTAURANT VOICE
 ────────────────
-Personality: ${brandVoice.personality}
-${brandVoice.owner_description ? `Owner's description: ${brandVoice.owner_description}\n` : ''}
+Personality: ${personality}
+${ownerDesc ? `Owner's description: ${ownerDesc}\n` : ''}
 FORBIDDEN PHRASES (any of these = automatic fail)
 ──────────────────────────────────────────────────
 ${forbiddenList}

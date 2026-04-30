@@ -1,15 +1,22 @@
+import { sanitizeForPrompt } from '@/lib/sanitize'
 import type { BrandVoice, CalibrationExample, Review } from '@/lib/types'
 
 function formatVoice(bv: BrandVoice): string {
+  // Owner-controlled free-text fields are sanitized before interpolation
+  // (strips injection-shaped lines like "Ignore previous instructions").
+  const personality = sanitizeForPrompt(bv.personality)
+  const avoid = sanitizeForPrompt(bv.avoid)
+  const ownerDesc = sanitizeForPrompt(bv.owner_description ?? '')
+
   const lines: string[] = [
-    `Personality: ${bv.personality}`,
-    `Never say or imply: ${bv.avoid}`,
+    `Personality: ${personality}`,
+    `Never say or imply: ${avoid}`,
   ]
   if (bv.signature_phrases.length > 0) {
     lines.push(`Signature phrases (use occasionally, not in every response): ${bv.signature_phrases.join(', ')}`)
   }
-  if (bv.owner_description) {
-    lines.push(`Owner's own words about their voice:\n${bv.owner_description}`)
+  if (ownerDesc) {
+    lines.push(`Owner's own words about their voice:\n${ownerDesc}`)
   }
   return lines.join('\n')
 }
@@ -69,4 +76,8 @@ Reviewer: ${reviewerLabel}
 Review: "${review.text}"
 
 Write only the response text. No quotes, no labels, no explanation.`
+  // review.text and review.reviewer_name are external strings from Google's
+  // GBP API — outside owner control. We don't sanitize them; silent
+  // modification could mangle legitimate review content. The LLM quality
+  // gate in src/services/auto-post.ts is the defense layer for those.
 }

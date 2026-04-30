@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from '@/lib/sanitize'
 import type { BrandVoice, ExistingResponse, ScenarioType } from '@/lib/types'
 
 // What each scenario type represents — used to guide sample review generation
@@ -13,21 +14,33 @@ const SCENARIO_DESCRIPTIONS: Record<ScenarioType, string> = {
 }
 
 function formatVoice(bv: BrandVoice): string {
+  // Owner-controlled free-text fields are sanitized for prompt-injection
+  // shape before interpolation. signature_phrases are left as-is — they're
+  // already short, comma-joined, and surfaced as a list rather than a
+  // multi-line block, so the injection vector is much narrower.
+  const personality = sanitizeForPrompt(bv.personality)
+  const avoid = sanitizeForPrompt(bv.avoid)
+  const ownerDesc = sanitizeForPrompt(bv.owner_description ?? '')
+
   const lines: string[] = [
-    `Personality: ${bv.personality}`,
-    `Never say or imply: ${bv.avoid}`,
+    `Personality: ${personality}`,
+    `Never say or imply: ${avoid}`,
   ]
   if (bv.signature_phrases.length > 0) {
     lines.push(`Signature phrases (use occasionally, not in every response): ${bv.signature_phrases.join(', ')}`)
   }
-  if (bv.owner_description) {
-    lines.push(`Owner's own words about their voice:\n${bv.owner_description}`)
+  if (ownerDesc) {
+    lines.push(`Owner's own words about their voice:\n${ownerDesc}`)
   }
   return lines.join('\n')
 }
 
 function formatExistingResponses(responses: ExistingResponse[]): string {
   if (responses.length === 0) return ''
+  // review_text and response_text come from Google's GBP API — they're
+  // external strings the owner doesn't control, so we don't sanitize them
+  // here (silent modification of a real review would mangle legitimate
+  // content). The LLM quality gate downstream is the defense for those.
   const examples = responses
     .slice(0, 6)  // cap at 6 to keep the prompt focused
     .map((r, i) =>
@@ -40,11 +53,15 @@ function formatExistingResponses(responses: ExistingResponse[]): string {
 }
 
 function formatOwnerFeedback(ownerFeedback: string | undefined): string {
-  if (!ownerFeedback || !ownerFeedback.trim()) return ''
-  // Escape any single quotes so the prompt doesn't end up with mismatched quoting
-  // when the feedback contains things like "it's too formal".
-  const sanitized = ownerFeedback.trim().replace(/'/g, "\\'")
-  return `\n- The owner reviewed the previous response for this scenario and said: '${sanitized}'. Adjust accordingly — take this as a strong signal about what to change in this new attempt.`
+  // sanitizeForPrompt strips injection-shaped lines, collapses whitespace,
+  // and trims — so the empty-input check and trim() bits below are
+  // redundant after sanitize, but kept for clarity at the call site.
+  const sanitized = sanitizeForPrompt(ownerFeedback)
+  if (!sanitized) return ''
+  // Escape single quotes so the prompt doesn't end up with mismatched
+  // quoting when the feedback contains things like "it's too formal".
+  const escaped = sanitized.replace(/'/g, "\\'")
+  return `\n- The owner reviewed the previous response for this scenario and said: '${escaped}'. Adjust accordingly — take this as a strong signal about what to change in this new attempt.`
 }
 
 /**
