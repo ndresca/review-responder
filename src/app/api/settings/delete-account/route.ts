@@ -4,9 +4,11 @@ import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { getValidSession } from '@/lib/session'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-03-25.dahlia',
-})
+function buildStripe() {
+  const key = process.env.STRIPE_SECRET_KEY
+  if (!key) throw new Error('STRIPE_SECRET_KEY is required')
+  return new Stripe(key, { apiVersion: '2026-03-25.dahlia' })
+}
 
 function buildServiceSupabase() {
   const url = process.env.SUPABASE_URL
@@ -51,14 +53,21 @@ export async function DELETE(): Promise<NextResponse> {
       .select('stripe_subscription_id, status')
       .in('location_id', locationIds)
 
-    for (const s of subs ?? []) {
+    const activeSubs = (subs ?? []).filter(s => {
       const subId = s.stripe_subscription_id as string
       const status = s.status as string
-      if (status === 'canceled' || !subId) continue
-      try {
-        await stripe.subscriptions.cancel(subId)
-      } catch (err) {
-        console.warn(`delete-account: stripe.subscriptions.cancel(${subId}) failed (continuing):`, err)
+      return status !== 'canceled' && subId
+    })
+
+    if (activeSubs.length > 0) {
+      const stripe = buildStripe()
+      for (const s of activeSubs) {
+        const subId = s.stripe_subscription_id as string
+        try {
+          await stripe.subscriptions.cancel(subId)
+        } catch (err) {
+          console.warn(`delete-account: stripe.subscriptions.cancel(${subId}) failed (continuing):`, err)
+        }
       }
     }
   }

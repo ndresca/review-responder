@@ -4,9 +4,11 @@ import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { getValidSession } from '@/lib/session'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-03-25.dahlia',
-})
+function buildStripe() {
+  const key = process.env.STRIPE_SECRET_KEY
+  if (!key) throw new Error('STRIPE_SECRET_KEY is required')
+  return new Stripe(key, { apiVersion: '2026-03-25.dahlia' })
+}
 
 function buildServiceSupabase() {
   const url = process.env.SUPABASE_URL
@@ -17,7 +19,7 @@ function buildServiceSupabase() {
 
 // Lazily create the product + price on first call, then reuse.
 // In production you'd store the price ID in an env var after creating it once.
-async function getOrCreatePrice(): Promise<string> {
+async function getOrCreatePrice(stripe: Stripe): Promise<string> {
   // Check for existing product by metadata
   const products = await stripe.products.list({ limit: 1, active: true })
   const existing = products.data.find(p => p.metadata.app === 'autoplier')
@@ -88,7 +90,8 @@ export async function POST(request: Request) {
     // cookies on the way back from Checkout.
     const canonicalUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
     const origin = canonicalUrl ?? new URL(request.url).origin
-    const priceId = await getOrCreatePrice()
+    const stripe = buildStripe()
+    const priceId = await getOrCreatePrice(stripe)
 
     const stripeSession = await stripe.checkout.sessions.create({
       mode: 'subscription',

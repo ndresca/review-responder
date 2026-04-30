@@ -4,9 +4,11 @@ import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { getValidSession } from '@/lib/session'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-03-25.dahlia',
-})
+function buildStripe() {
+  const key = process.env.STRIPE_SECRET_KEY
+  if (!key) throw new Error('STRIPE_SECRET_KEY is required')
+  return new Stripe(key, { apiVersion: '2026-03-25.dahlia' })
+}
 
 function buildServiceSupabase() {
   const url = process.env.SUPABASE_URL
@@ -69,6 +71,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   // idempotent on Stripe's side — setting cancel_at_period_end=true twice is
   // a no-op.
   try {
+    const stripe = buildStripe()
     await stripe.subscriptions.update(stripeSubId, { cancel_at_period_end: true })
   } catch (err) {
     console.error('cancel-subscription: stripe.subscriptions.update failed:', err)
