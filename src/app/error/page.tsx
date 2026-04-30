@@ -113,19 +113,14 @@ function ErrorContent() {
               {variant.primary.label}
             </a>
           )}
+          {/* When applicable, render contact-support as a separate, equally
+              prominent button — never as "or contact support" inline text. */}
           {variant.showSupportFallback && (
-            <a href={SUPPORT_MAILTO} className={styles.secondaryLink}>
-              Or contact support
+            <a href={SUPPORT_MAILTO} className={styles.btnSecondary}>
+              Contact support
             </a>
           )}
         </div>
-
-        {/* Tiny mono code for our own debugging if a user forwards a screenshot.
-            Only shown when there's a real reason in the URL — generic unknown
-            renders cleanly without it. */}
-        {rawReason && (
-          <p className={styles.reasonCode}>{rawReason}</p>
-        )}
       </div>
     </main>
   )

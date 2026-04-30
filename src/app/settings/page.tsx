@@ -397,17 +397,16 @@ function SettingsContent() {
 
   return (
     <main className={styles.page}>
-      {/* Paused banner — always rendered with a fixed-height slot to prevent
-          layout shift when toggling pause. Visibility flips, height stays. */}
-      <div
-        className={styles.pausedBannerSlot}
-        style={paused ? undefined : { visibility: 'hidden' }}
-        role="alert"
-      >
-        <div className={styles.pausedBanner}>
+      {/* Paused banner — only renders when actually paused, so there's no
+          empty gap at the top of the page in the common (running) state.
+          Toggling pause does shift the page below by ~56px, but the user
+          clicks Pause/Resume in the danger zone (bottom) and the banner
+          appears at the top, so the shift is offscreen during the action. */}
+      {paused && (
+        <div className={styles.pausedBanner} role="alert">
           Auto-posting is paused. Reviews are not being responded to.
         </div>
-      </div>
+      )}
 
       {/* Back nav */}
       <nav className={styles.backNav} aria-label="Navigation">
