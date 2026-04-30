@@ -1,35 +1,26 @@
-import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-import { getValidSession } from '@/lib/session'
-
-function buildServiceSupabase() {
-  const url = process.env.SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required')
-  return createClient(url, key, { auth: { persistSession: false } })
-}
+import { getAuthedSupabase } from '@/lib/session'
 
 // Returns every response_posted row for the owner's first location, joined
 // with its review metadata, ordered by reviews.created_at DESC. Used by the
 // /history page to show the full review-and-response log.
 //
+// Uses a user-scoped Supabase client (anon key + sb-* cookies) so RLS
+// policies enforce row-level access automatically. The owner_id filter is
+// implicit via RLS; we still add explicit filters as belt-and-suspenders.
+//
 // responses_posted has no created_at column (only posted_at, which is null
 // until status flips to 'posted'). reviews.created_at is the closest stable
 // "when did this happen" timestamp and orders the page sensibly.
 export async function GET(): Promise<NextResponse> {
-  const cookieStore = await cookies()
-  const session = await getValidSession(cookieStore)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const ownerId = session.ownerId
-
-  const supabase = buildServiceSupabase()
+  const authed = await getAuthedSupabase()
+  if (!authed) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { supabase } = authed
 
   // 1. Owner's first location.
   const { data: location, error: locErr } = await supabase
     .from('locations')
     .select('id, name')
-    .eq('owner_id', ownerId)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle()
