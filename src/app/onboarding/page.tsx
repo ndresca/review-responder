@@ -325,6 +325,16 @@ function OnboardingContent() {
     setCalibLoading(true)
   }
 
+  // Direct entry to step 3 (browser back/forward, refresh, deep link) skips
+  // handleStep2Continue, leaving calib state idle and rendering nothing. Kick
+  // off calibration here so the user always sees either the spinner, an error,
+  // or the cards. The loading effect handles the missing-locationId case.
+  useEffect(() => {
+    if (currentStep !== 3) return
+    if (calibLoading || calibReady || calibError) return
+    startCalibLoading()
+  }, [currentStep, calibLoading, calibReady, calibError])
+
   function validateStep2(): boolean {
     const errors: Record<string, string> = {}
     if (!restaurantName.trim()) errors.restaurantName = 'This field is required.'
