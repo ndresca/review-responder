@@ -24,54 +24,70 @@ type ErrorVariant = {
 
 const SUPPORT_MAILTO = 'mailto:contact@autoplier.com'
 
+const TRY_AGAIN_GOOGLE: ActionKind = { kind: 'try-again', href: '/onboarding', label: 'Try again' }
+
 const VARIANTS: Record<string, ErrorVariant> = {
-  google_denied: {
+  // Google declined / cancelled — Google's `error` query param is forwarded as
+  // `google_${error}`, most commonly `google_access_denied`.
+  google_access_denied: {
     heading: 'Connection declined',
     message: 'You declined to connect your Google account. You can try again from the onboarding page.',
-    primary: { kind: 'try-again', href: '/onboarding', label: 'Try again' },
+    primary: TRY_AGAIN_GOOGLE,
     showSupportFallback: true,
   },
   token_exchange: {
     heading: 'Connection error',
     message: 'Something went wrong connecting your Google account. Please try again.',
-    primary: { kind: 'try-again', href: '/onboarding', label: 'Try again' },
+    primary: TRY_AGAIN_GOOGLE,
     showSupportFallback: true,
   },
   missing_state: {
     heading: 'Session expired',
     message: 'Your session expired. Please try again.',
-    primary: { kind: 'try-again', href: '/onboarding', label: 'Try again' },
+    primary: TRY_AGAIN_GOOGLE,
     showSupportFallback: true,
   },
   state_mismatch: {
     heading: 'Session expired',
     message: 'Your session expired. Please try again.',
-    primary: { kind: 'try-again', href: '/onboarding', label: 'Try again' },
+    primary: TRY_AGAIN_GOOGLE,
     showSupportFallback: true,
   },
-  no_gbp_accounts: {
-    heading: 'No business profile found',
-    message: "No Google Business Profile found on this account. Make sure you're signed in with the correct Google account.",
-    primary: { kind: 'try-again', href: '/onboarding', label: 'Try again' },
+  missing_code: {
+    heading: 'Connection error',
+    message: 'Google didn\'t return an authorization code. Please try connecting again.',
+    primary: TRY_AGAIN_GOOGLE,
     showSupportFallback: true,
   },
-  no_gbp_locations: {
-    heading: 'No business profile found',
-    message: "No Google Business Profile found on this account. Make sure you're signed in with the correct Google account.",
-    primary: { kind: 'try-again', href: '/onboarding', label: 'Try again' },
+  no_access_token: {
+    heading: 'Connection error',
+    message: 'We couldn\'t complete the Google sign-in. Please try again.',
+    primary: TRY_AGAIN_GOOGLE,
+    showSupportFallback: true,
+  },
+  no_refresh_token: {
+    heading: 'Connection needs a refresh',
+    message: 'Google didn\'t return a refresh token. Please disconnect and reconnect, choosing your account again when prompted.',
+    primary: TRY_AGAIN_GOOGLE,
+    showSupportFallback: true,
+  },
+  userinfo_fetch: {
+    heading: 'Connection error',
+    message: 'We couldn\'t read your Google account info. Please try again.',
+    primary: TRY_AGAIN_GOOGLE,
+    showSupportFallback: true,
+  },
+  user_creation: {
+    heading: 'Save failed',
+    message: 'Something went wrong saving your account. Please try again.',
+    primary: TRY_AGAIN_GOOGLE,
     showSupportFallback: true,
   },
   rate_limited: {
     heading: 'Too many attempts',
     message: 'Too many attempts. Please wait a minute and try again.',
-    primary: { kind: 'try-again', href: '/onboarding', label: 'Try again' },
+    primary: TRY_AGAIN_GOOGLE,
     showSupportFallback: false,
-  },
-  db_write: {
-    heading: 'Save failed',
-    message: 'Something went wrong saving your account. Please try again.',
-    primary: { kind: 'try-again', href: '/onboarding', label: 'Try again' },
-    showSupportFallback: true,
   },
   config: {
     heading: 'Configuration error',
@@ -83,9 +99,9 @@ const VARIANTS: Record<string, ErrorVariant> = {
 
 const UNKNOWN_VARIANT: ErrorVariant = {
   heading: 'Something went wrong',
-  message: 'Something went wrong. Please try again or contact support at contact@autoplier.com.',
-  primary: { kind: 'contact-support', label: 'Contact support' },
-  showSupportFallback: false,
+  message: 'Something unexpected happened. Try again, or contact support if it keeps failing.',
+  primary: TRY_AGAIN_GOOGLE,
+  showSupportFallback: true,
 }
 
 function ErrorContent() {
