@@ -110,6 +110,70 @@ async function fetchAllReviewsFirstPage(
   return page.reviews ?? []
 }
 
+// ─── Shared GBP-fetch + classifier filter ────────────────────────────────────
+//
+// Both the POST handler (initial calibration) and the PATCH-path
+// regenerateExample helper need the same flow: fetch GBP reviews, drop the
+// owner-replied ones into the few-shot pool, and strip anything that looks
+// like a prompt-injection attempt before it reaches the LLM. Putting it
+// here means the next code path that needs few-shot context can't ship
+// without the classifier by construction.
+//
+// Layer 1 of the three-layer defense (classifier + delimiter wrap + output
+// allowlist). Mirrors src/services/auto-post.ts's pre-generation filter.
+
+async function fetchAndFilterReviews(
+  googleLocationId: string,
+  accessToken: string,
+): Promise<ExistingResponse[]> {
+  const allReviews = await fetchAllReviewsFirstPage(googleLocationId, accessToken)
+  const candidates = allReviews
+    .filter(r => r.reviewReply?.comment)
+    .map(r => ({
+      review_text: r.comment ?? '',
+      review_rating: STAR_RATING[r.starRating] ?? 0,
+      response_text: r.reviewReply!.comment,
+    }))
+
+  const safe: ExistingResponse[] = []
+  let droppedCount = 0
+  for (const r of candidates) {
+    const verdict = classifyReviewSafety(r.review_text)
+    if (verdict.safe) {
+      safe.push(r)
+    } else {
+      droppedCount++
+    }
+  }
+  if (droppedCount > 0) {
+    console.warn(`fetchAndFilterReviews: dropped ${droppedCount} of ${candidates.length} GBP reviews flagged by classifyReviewSafety`)
+  }
+  return safe
+}
+
+// ─── Shared output-allowlist validator ───────────────────────────────────────
+//
+// Layer 3 of the three-layer defense. Builds a synthetic allowlist source
+// from the owner's existing GBP replies (URLs/phones the owner has actually
+// used) and rejects any generated ai_response that introduces a new URL or
+// phone. Throws on failure so callers can route the rejection however they
+// need (skip+continue in POST, surface to UI in PATCH).
+
+function validateGeneratedExample(
+  aiResponse: string,
+  source: ExistingResponse[],
+): void {
+  const allowlistSource: CalibrationExample[] = source.map(r => ({
+    scenario_type: '5star',
+    review_sample: r.review_text,
+    ai_response: r.response_text,
+  }))
+  const outputCheck = checkOutputAllowlist(aiResponse, allowlistSource)
+  if (!outputCheck.pass) {
+    throw new Error(`validateGeneratedExample: output rejected — ${outputCheck.reason ?? 'allowlist failed'}`)
+  }
+}
+
 // ─── Token resolution (mirrors processLocation in auto-post.ts) ──────────────
 
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
@@ -309,37 +373,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Failed to load Google credentials' }, { status: 502 })
   }
 
-  // Fetch GBP reviews (all, including replied) for few-shot context.
-  // Reviewer-supplied content is attacker-controlled — anyone can leave a
-  // Google review. Run each review.text through classifyReviewSafety BEFORE
-  // it lands in the few-shot pool. Anything that looks like a prompt-injection
-  // attempt is dropped here so it never reaches the LLM. Mirrors the
-  // auto-post pipeline defense in src/services/auto-post.ts.
+  // Fetch GBP reviews + apply prompt-injection classifier in one shot.
+  // See fetchAndFilterReviews above — Layer 1 of the three-layer defense.
   let existingResponses: ExistingResponse[] = []
   try {
-    const allReviews = await fetchAllReviewsFirstPage(location.google_location_id as string, accessToken)
-    const candidates = allReviews
-      .filter(r => r.reviewReply?.comment)
-      .map(r => ({
-        review_text: r.comment ?? '',
-        review_rating: STAR_RATING[r.starRating] ?? 0,
-        response_text: r.reviewReply!.comment,
-      }))
-
-    const safe: ExistingResponse[] = []
-    let droppedCount = 0
-    for (const r of candidates) {
-      const verdict = classifyReviewSafety(r.review_text)
-      if (verdict.safe) {
-        safe.push(r)
-      } else {
-        droppedCount++
-      }
-    }
-    if (droppedCount > 0) {
-      console.warn(`calibrate: dropped ${droppedCount} of ${candidates.length} GBP reviews flagged by classifyReviewSafety`)
-    }
-    existingResponses = safe
+    existingResponses = await fetchAndFilterReviews(location.google_location_id as string, accessToken)
   } catch (err) {
     // Non-fatal — calibration works without existing responses, just less personalized
     console.warn('fetchAllReviews failed (continuing without examples):', err)
@@ -368,27 +406,15 @@ export async function POST(request: Request): Promise<NextResponse> {
   const scenarios = getCalibrationScenarios(brandVoice.language)
   const outputs: (CalibrationOutput & { scenario: ScenarioType })[] = []
 
-  // Allowlist for the post-generation check: the owner's existing GBP
-  // replies. URLs/phone numbers in those are owner-issued and trusted;
-  // anything new in a generated ai_response would be model-invented or
-  // injection-driven and should be flagged before it lands in
-  // calibration_examples.
-  const allowlistSource: CalibrationExample[] = existingResponses.map(r => ({
-    scenario_type: '5star',
-    review_sample: r.review_text,
-    ai_response: r.response_text,
-  }))
-
   for (let i = 0; i < scenarios.length; i++) {
     const scenario = scenarios[i]
     if (i > 0) await sleep(300)
     try {
       const output = await generateExample(openai, brandVoice, existingResponses, scenario)
-      const outputCheck = checkOutputAllowlist(output.ai_response, allowlistSource)
-      if (!outputCheck.pass) {
-        console.warn(`calibration: dropping ${scenario} example — ${outputCheck.reason}`)
-        continue
-      }
+      // Layer 3 — output allowlist. validateGeneratedExample throws on
+      // failure; the catch below routes that to "skip + continue" so a
+      // single allowlist rejection doesn't kill the whole session.
+      validateGeneratedExample(output.ai_response, existingResponses)
       outputs.push({ ...output, scenario })
     } catch (err) {
       console.error(`calibration: generateExample failed for scenario ${scenario}:`, err)
@@ -629,18 +655,11 @@ async function regenerateExample(
   // Resolve access token (refreshes if expiring)
   const accessToken = await resolveAccessToken(supabase, locationId)
 
-  // Best-effort GBP fetch for few-shot context — same pattern as POST.
-  // Calibration still works without it; the prompt just has less personalization.
+  // Best-effort GBP fetch + Layer 1 classifier filter — same shared helper
+  // as POST so the regenerate path can't drift.
   let existingResponses: ExistingResponse[] = []
   try {
-    const allReviews = await fetchAllReviewsFirstPage(googleLocationId, accessToken)
-    existingResponses = allReviews
-      .filter(r => r.reviewReply?.comment)
-      .map(r => ({
-        review_text: r.comment ?? '',
-        review_rating: STAR_RATING[r.starRating] ?? 0,
-        response_text: r.reviewReply!.comment,
-      }))
+    existingResponses = await fetchAndFilterReviews(googleLocationId, accessToken)
   } catch (err) {
     console.warn('regenerateExample: fetchAllReviews failed (continuing without examples):', err)
   }
@@ -649,6 +668,12 @@ async function regenerateExample(
   // the owner's free-form feedback about what was wrong with the previous one.
   const openai = buildOpenAI()
   const output = await generateExample(openai, brandVoice, existingResponses, scenario, ownerFeedback)
+
+  // Layer 3 — output allowlist. Throws on failure; the PATCH handler's
+  // try/catch wrapper turns that into a 502 so the UI can surface a clear
+  // "regen produced unexpected content" message instead of saving a
+  // potentially-poisoned example.
+  validateGeneratedExample(output.ai_response, existingResponses)
 
   // Insert as a new pending row in the same session
   const { data: inserted, error: insertErr } = await supabase
