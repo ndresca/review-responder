@@ -5,9 +5,11 @@ import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { decrypt, encrypt } from '@/lib/crypto'
 import { refreshOAuthToken } from '@/lib/gbp-client'
+import { checkOutputAllowlist } from '@/lib/output-allowlist'
+import { classifyReviewSafety } from '@/lib/review-safety'
 import { buildCalibrationPrompt } from '@/prompts/calibration'
 import { sanitizeForPrompt } from '@/lib/sanitize'
-import type { BrandVoice, ExistingResponse, ScenarioType } from '@/lib/types'
+import type { BrandVoice, CalibrationExample, ExistingResponse, ScenarioType } from '@/lib/types'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -307,17 +309,37 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Failed to load Google credentials' }, { status: 502 })
   }
 
-  // Fetch GBP reviews (all, including replied) for few-shot context
+  // Fetch GBP reviews (all, including replied) for few-shot context.
+  // Reviewer-supplied content is attacker-controlled — anyone can leave a
+  // Google review. Run each review.text through classifyReviewSafety BEFORE
+  // it lands in the few-shot pool. Anything that looks like a prompt-injection
+  // attempt is dropped here so it never reaches the LLM. Mirrors the
+  // auto-post pipeline defense in src/services/auto-post.ts.
   let existingResponses: ExistingResponse[] = []
   try {
     const allReviews = await fetchAllReviewsFirstPage(location.google_location_id as string, accessToken)
-    existingResponses = allReviews
+    const candidates = allReviews
       .filter(r => r.reviewReply?.comment)
       .map(r => ({
         review_text: r.comment ?? '',
         review_rating: STAR_RATING[r.starRating] ?? 0,
         response_text: r.reviewReply!.comment,
       }))
+
+    const safe: ExistingResponse[] = []
+    let droppedCount = 0
+    for (const r of candidates) {
+      const verdict = classifyReviewSafety(r.review_text)
+      if (verdict.safe) {
+        safe.push(r)
+      } else {
+        droppedCount++
+      }
+    }
+    if (droppedCount > 0) {
+      console.warn(`calibrate: dropped ${droppedCount} of ${candidates.length} GBP reviews flagged by classifyReviewSafety`)
+    }
+    existingResponses = safe
   } catch (err) {
     // Non-fatal — calibration works without existing responses, just less personalized
     console.warn('fetchAllReviews failed (continuing without examples):', err)
@@ -346,11 +368,27 @@ export async function POST(request: Request): Promise<NextResponse> {
   const scenarios = getCalibrationScenarios(brandVoice.language)
   const outputs: (CalibrationOutput & { scenario: ScenarioType })[] = []
 
+  // Allowlist for the post-generation check: the owner's existing GBP
+  // replies. URLs/phone numbers in those are owner-issued and trusted;
+  // anything new in a generated ai_response would be model-invented or
+  // injection-driven and should be flagged before it lands in
+  // calibration_examples.
+  const allowlistSource: CalibrationExample[] = existingResponses.map(r => ({
+    scenario_type: '5star',
+    review_sample: r.review_text,
+    ai_response: r.response_text,
+  }))
+
   for (let i = 0; i < scenarios.length; i++) {
     const scenario = scenarios[i]
     if (i > 0) await sleep(300)
     try {
       const output = await generateExample(openai, brandVoice, existingResponses, scenario)
+      const outputCheck = checkOutputAllowlist(output.ai_response, allowlistSource)
+      if (!outputCheck.pass) {
+        console.warn(`calibration: dropping ${scenario} example — ${outputCheck.reason}`)
+        continue
+      }
       outputs.push({ ...output, scenario })
     } catch (err) {
       console.error(`calibration: generateExample failed for scenario ${scenario}:`, err)
