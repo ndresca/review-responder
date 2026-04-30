@@ -272,3 +272,34 @@ create policy "owners can manage notification preferences for their locations"
         and locations.owner_id = auth.uid()
     )
   );
+
+-- ─── 9. session_tokens ───────────────────────────────────────
+-- Refresh tokens for the autoplier_refresh cookie. The cookie holds the raw
+-- 32-byte token; we store its SHA-256 hash here so a DB read leak doesn't
+-- yield usable credentials. Lookup is by token_hash (indexed).
+--
+-- expires_at = 30 days from creation. revoked is set to true on logout
+-- (delete-account, future signOut endpoints). Refresh endpoint only
+-- considers tokens where revoked=false AND expires_at > now().
+
+create table session_tokens (
+  id          uuid primary key default gen_random_uuid(),
+  owner_id    uuid not null references auth.users(id) on delete cascade,
+  token_hash  text not null unique,
+  expires_at  timestamptz not null,
+  created_at  timestamptz not null default now(),
+  revoked     boolean not null default false
+);
+
+create index session_tokens_owner_id_idx   on session_tokens(owner_id);
+create index session_tokens_expires_at_idx on session_tokens(expires_at);
+
+alter table session_tokens enable row level security;
+
+-- Service role only. The token cookie is the credential — no auth.uid()-
+-- based access path makes sense because the refresh endpoint is the only
+-- caller and it uses the service-role client.
+create policy "no client access to session tokens"
+  on session_tokens
+  for all
+  using (false);

@@ -1,9 +1,8 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { SignJWT } from 'jose'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { encrypt } from '@/lib/crypto'
+import { issueRefreshToken, mintSupabaseSession } from '@/lib/session-mint'
 
 const OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo'
@@ -416,56 +415,16 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   const response = NextResponse.redirect(redirectUrl.toString())
 
-  // ── 6a. Mint a Supabase-compatible JWT and write sb-* cookies ────────────
-  // After this, RLS-protected reads via @supabase/ssr will see auth.uid() =
-  // ownerId. The JWT is signed with SUPABASE_JWT_SECRET (separate from anon /
-  // service-role keys; in dashboard → Settings → API → JWT Secret).
-  //
-  // Trade-off: refresh_token is set to the same JWT for now. Real Supabase
-  // refresh tokens are opaque server-issued strings, not JWTs — when the
-  // 1-hour access token expires, the SDK will try to refresh and the auth
-  // server will reject (the JWT isn't a valid refresh token). The user has
-  // to re-OAuth at that point. Acceptable trade for "no extra browser hops"
-  // until we add a proper refresh-token mint or a separate refresh endpoint.
-  const jwtSecret = process.env.SUPABASE_JWT_SECRET
-  const supabaseUrl = process.env.SUPABASE_URL
-  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY
-  if (!jwtSecret || !supabaseUrl || !supabaseAnonKey) {
-    console.error('OAuth callback: SUPABASE_JWT_SECRET / SUPABASE_URL / SUPABASE_ANON_KEY missing — cannot mint session')
-    return redirectError('config')
-  }
-
+  // ── 6a. Mint a Supabase-compatible JWT + issue our own refresh token ─────
+  // mintSupabaseSession writes sb-<project-ref>-auth-token cookies (1h
+  // expiry) so RLS-protected reads via @supabase/ssr see auth.uid()=ownerId.
+  // issueRefreshToken inserts a session_tokens row (SHA-256 hashed) and
+  // sets the autoplier_refresh cookie (30d). When the 1h JWT expires,
+  // /api/auth/refresh trades the refresh cookie for a fresh JWT — no
+  // re-OAuth required.
   try {
-    const secret = new TextEncoder().encode(jwtSecret)
-    const now = Math.floor(Date.now() / 1000)
-    const accessToken = await new SignJWT({
-      sub: ownerId,
-      role: 'authenticated',
-      aud: 'authenticated',
-      iat: now,
-      exp: now + 60 * 60, // 1 hour — expiry forces re-OAuth (no real refresh)
-    })
-      .setProtectedHeader({ alg: 'HS256' })
-      .sign(secret)
-
-    // Use createServerClient with a setAll callback that writes onto the
-    // outgoing redirect response. setSession() internally calls our setAll
-    // with the sb-<project-ref>-auth-token cookies.
-    const sbClient = createServerClient(supabaseUrl, supabaseAnonKey, {
-      cookies: {
-        getAll() { return cookieStore.getAll() },
-        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          for (const c of cookiesToSet) {
-            response.cookies.set(c.name, c.value, c.options)
-          }
-        },
-      },
-    })
-
-    await sbClient.auth.setSession({
-      access_token: accessToken,
-      refresh_token: accessToken,
-    })
+    await mintSupabaseSession(ownerId, cookieStore, response)
+    await issueRefreshToken(ownerId, response)
   } catch (err) {
     console.error('OAuth callback: session minting failed:', err)
     return redirectError('config')
