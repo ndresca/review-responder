@@ -30,7 +30,6 @@ const EMPTY_DEFAULTS = {
   restaurantName: '',
   personality: '',
   avoid: '',
-  signaturePhrasesText: '',
   language: 'en',
   daily: true,
   weekly: false,
@@ -45,7 +44,6 @@ type LoadResponse = {
   brandVoice: {
     personality: string
     avoid: string
-    signaturePhrases: string[]
     language: string
     ownerDescription: string | null
   } | null
@@ -101,7 +99,6 @@ function SettingsContent() {
   const [restaurantName, setRestaurantName] = useState(EMPTY_DEFAULTS.restaurantName)
   const [personality, setPersonality] = useState(EMPTY_DEFAULTS.personality)
   const [avoid, setAvoid] = useState(EMPTY_DEFAULTS.avoid)
-  const [signaturePhrasesText, setSignaturePhrasesText] = useState(EMPTY_DEFAULTS.signaturePhrasesText)
   const [language, setLanguage] = useState(EMPTY_DEFAULTS.language)
   const [daily, setDaily] = useState(EMPTY_DEFAULTS.daily)
   const [weekly, setWeekly] = useState(EMPTY_DEFAULTS.weekly)
@@ -183,7 +180,6 @@ function SettingsContent() {
         if (data.brandVoice) {
           next.personality = data.brandVoice.personality ?? ''
           next.avoid = data.brandVoice.avoid ?? ''
-          next.signaturePhrasesText = (data.brandVoice.signaturePhrases ?? []).join(', ')
           next.language = data.brandVoice.language ?? 'en'
         }
 
@@ -200,7 +196,6 @@ function SettingsContent() {
         setRestaurantName(next.restaurantName)
         setPersonality(next.personality)
         setAvoid(next.avoid)
-        setSignaturePhrasesText(next.signaturePhrasesText)
         setLanguage(next.language)
         setDaily(next.daily)
         setWeekly(next.weekly)
@@ -230,14 +225,13 @@ function SettingsContent() {
       restaurantName !== s.restaurantName ||
       personality !== s.personality ||
       avoid !== s.avoid ||
-      signaturePhrasesText !== s.signaturePhrasesText ||
       language !== s.language ||
       daily !== s.daily ||
       weekly !== s.weekly ||
       lowAlert !== s.lowAlert ||
       hourIdx !== s.hourIdx
     )
-  }, [restaurantName, personality, avoid, signaturePhrasesText, language, daily, weekly, lowAlert, hourIdx])
+  }, [restaurantName, personality, avoid, language, daily, weekly, lowAlert, hourIdx])
 
   function handleDaily(on: boolean) {
     setDaily(on)
@@ -247,11 +241,6 @@ function SettingsContent() {
   function handleWeekly(on: boolean) {
     setWeekly(on)
     if (on) setDaily(false)
-  }
-
-  // Parses the comma-separated phrases input into a clean string[] for the API.
-  function parseSignaturePhrases(raw: string): string[] {
-    return raw.split(',').map(s => s.trim()).filter(Boolean)
   }
 
   async function handleSave() {
@@ -276,7 +265,6 @@ function SettingsContent() {
           locationId,
           personality,
           avoid,
-          signaturePhrases: parseSignaturePhrases(signaturePhrasesText),
           language,
           frequency,
           digestDay: frequency === 'weekly' ? 1 : null, // Monday default; surface a day picker in a follow-up
@@ -294,14 +282,20 @@ function SettingsContent() {
 
       // Snapshot current values as the new saved baseline so isDirty() flips false.
       savedRef.current = {
-        restaurantName, personality, avoid, signaturePhrasesText, language,
+        restaurantName, personality, avoid, language,
         daily, weekly, lowAlert, hourIdx,
       }
       setSavedVersion(v => v + 1)
 
-      // Briefly flash "Saved" — 2s as specified.
+      // Briefly flash "Saved" so the success state is perceptible, then push
+      // the user back to the dashboard. The flash is short (1s) since the
+      // navigation itself is the primary success signal — dashboard is the
+      // home base after every settings interaction.
       setSavedFlash(true)
-      setTimeout(() => setSavedFlash(false), 2000)
+      setTimeout(() => {
+        setSavedFlash(false)
+        router.push('/dashboard')
+      }, 1000)
     } catch (err) {
       console.error('POST /api/settings/save threw:', err)
       setSaveError('Network error — check your connection and try again.')
@@ -528,7 +522,8 @@ function SettingsContent() {
           </div>
           {gbpDisconnected && (
             <p className={styles.disconnectConfirmation}>
-              Google Business Profile disconnected. Auto-posting is now off — reconnect to resume.
+              Google Business Profile disconnected. Auto-posting is now off —{' '}
+              <a href="/api/auth/google" className={styles.reconnectLink}>Reconnect</a> to resume.
             </p>
           )}
         </div>
@@ -559,19 +554,6 @@ function SettingsContent() {
             value={avoid}
             onChange={(e) => setAvoid(e.target.value)}
             autoComplete="off"
-          />
-        </div>
-
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="signature-phrases">Signature phrases</label>
-          <input
-            type="text"
-            id="signature-phrases"
-            className={styles.textInput}
-            value={signaturePhrasesText}
-            onChange={(e) => setSignaturePhrasesText(e.target.value)}
-            autoComplete="off"
-            placeholder="comma-separated"
           />
         </div>
 
@@ -660,15 +642,15 @@ function SettingsContent() {
             </span>
           </div>
           {/* Muted text link — same .cancelSubLink class the other danger-zone
-              actions use. No filled/outlined button styling, no inline color
-              overrides — keeps the visual weight consistent across the row
-              and avoids the color-bleed that the previous outlined button
-              created when paused flipped to green. */}
+              actions use. handleToggleAutoPost has its own re-entry guard
+              (if pauseToggling: return), so we DON'T set the disabled prop —
+              .cancelSubLink:disabled would dim the link to 0.55 opacity on
+              every press, which read as "darken on press" while the optimistic
+              flip was in flight. The "..." text is the only in-flight signal. */}
           <button
             className={styles.cancelSubLink}
             aria-label={paused ? 'Resume auto-posting' : 'Pause auto-posting'}
             onClick={handleToggleAutoPost}
-            disabled={pauseToggling}
           >
             {pauseToggling ? '...' : (paused ? 'Resume auto-posting' : 'Pause auto-posting')}
           </button>

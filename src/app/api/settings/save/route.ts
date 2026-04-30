@@ -15,7 +15,6 @@ type SaveBody = {
   restaurantName?: string
   personality?: string
   avoid?: string
-  signaturePhrases?: string[]
   language?: string
   frequency?: 'daily' | 'weekly'
   digestDay?: number | null
@@ -31,8 +30,6 @@ const MAX_LENGTHS = {
   restaurantName: 200,
   personality: 1000,
   avoid: 500,
-  signaturePhraseCount: 10,
-  signaturePhraseLength: 100,
 } as const
 
 function validateLengths(body: SaveBody): NextResponse | null {
@@ -44,16 +41,6 @@ function validateLengths(body: SaveBody): NextResponse | null {
   }
   if (typeof body.avoid === 'string' && body.avoid.length > MAX_LENGTHS.avoid) {
     return NextResponse.json({ error: `avoid must be ${MAX_LENGTHS.avoid} characters or fewer` }, { status: 400 })
-  }
-  if (Array.isArray(body.signaturePhrases)) {
-    if (body.signaturePhrases.length > MAX_LENGTHS.signaturePhraseCount) {
-      return NextResponse.json({ error: `signaturePhrases can have at most ${MAX_LENGTHS.signaturePhraseCount} items` }, { status: 400 })
-    }
-    for (const phrase of body.signaturePhrases) {
-      if (typeof phrase === 'string' && phrase.length > MAX_LENGTHS.signaturePhraseLength) {
-        return NextResponse.json({ error: `each signature phrase must be ${MAX_LENGTHS.signaturePhraseLength} characters or fewer` }, { status: 400 })
-      }
-    }
   }
   return null
 }
@@ -76,7 +63,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const lengthError = validateLengths(body)
   if (lengthError) return lengthError
 
-  const { locationId, personality, avoid, signaturePhrases, language,
+  const { locationId, personality, avoid, language,
           frequency, digestDay, digestTime, timezone } = body
 
   if (!locationId) return NextResponse.json({ error: 'locationId is required' }, { status: 400 })
@@ -99,7 +86,6 @@ export async function POST(request: Request): Promise<NextResponse> {
   const bvUpdate: Record<string, unknown> = {}
   if (typeof personality === 'string') bvUpdate.personality = personality
   if (typeof avoid === 'string') bvUpdate.avoid = avoid
-  if (Array.isArray(signaturePhrases)) bvUpdate.signature_phrases = signaturePhrases
   if (typeof language === 'string') bvUpdate.language = language
 
   if (Object.keys(bvUpdate).length > 0) {

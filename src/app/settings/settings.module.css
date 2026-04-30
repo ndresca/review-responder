@@ -133,7 +133,11 @@
 
 .textInput {
   font-family: var(--font-body);
-  /* 16px minimum to prevent iOS Safari auto-zoom on focus. */
+  /* Default to 16px for iOS Safari (prevents auto-zoom on focus). The
+     desktop override below brings it down to 14px on mouse/trackpad
+     devices where iOS zoom isn't a concern. We keep both behaviors
+     without disabling the viewport meta (which would break pinch-zoom
+     accessibility). */
   font-size: 16px;
   color: var(--text);
   background: var(--surface);
@@ -149,6 +153,10 @@
 
 .textInput:focus {
   border-color: var(--accent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .textInput { font-size: 14px; }
 }
 
 /* ── GBP status ──────────────────────────────────────────────────────── */
@@ -192,6 +200,17 @@
   line-height: 1.5;
   margin: 8px 0 0;
 }
+
+/* Inline accent link inside the disconnect-confirmation copy — sends the
+   user back through /api/auth/google to re-authorize. */
+.reconnectLink {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.15s;
+}
+.reconnectLink:hover { border-color: var(--accent); }
+.reconnectLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
 
 .statusDot {
   width: 6px;
@@ -401,9 +420,10 @@
 .cancelSubLink:disabled { opacity: 0.55; cursor: default; }
 
 /* ── Textarea + select (used by inline brand-voice edit) ──────────── */
+/* Same iOS-zoom-prevention pattern as .textInput: 16px default, 14px
+   override on devices that don't trigger iOS auto-zoom. */
 .textarea {
   font-family: var(--font-body);
-  /* 16px minimum to prevent iOS Safari auto-zoom on focus. */
   font-size: 16px;
   color: var(--text);
   background: var(--surface);
@@ -419,9 +439,12 @@
 }
 .textarea:focus { border-color: var(--accent); }
 
+@media (hover: hover) and (pointer: fine) {
+  .textarea { font-size: 14px; }
+}
+
 .selectInput {
   font-family: var(--font-body);
-  /* 16px minimum to prevent iOS Safari auto-zoom on focus. */
   font-size: 16px;
   color: var(--text);
   background: var(--surface);
@@ -439,6 +462,10 @@
   padding-right: 36px;
 }
 .selectInput:focus { border-color: var(--accent); }
+
+@media (hover: hover) and (pointer: fine) {
+  .selectInput { font-size: 14px; }
+}
 
 /* ── Time picker ───────────────────────────────────────────────────── */
 .timeField {
