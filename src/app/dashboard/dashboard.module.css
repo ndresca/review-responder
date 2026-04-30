@@ -218,6 +218,11 @@
   position: relative;
 }
 
+/* Settings link — kept absolutely positioned in the header so the logo can
+   center, but the click area is now exactly the text. The previous
+   padding-top: 28px created an invisible 28px-tall hit zone above the text
+   which made the link appear to "extend upward" on tap. Removed. The
+   transform centers it vertically against the logo at top: 50%. */
 .settingsLink {
   font-family: var(--font-body);
   font-size: 13px;
@@ -227,7 +232,6 @@
   right: 0;
   top: 50%;
   transform: translateY(-50%);
-  padding-top: 28px;
   transition: color 0.15s;
 }
 .settingsLink:hover { color: var(--text); }
