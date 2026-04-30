@@ -16,7 +16,10 @@ import { getAuthedSupabase } from '@/lib/session'
 export async function GET(): Promise<NextResponse> {
   const authed = await getAuthedSupabase()
   if (!authed) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const { supabase } = authed
+  const { user, supabase } = authed
+  // user.email is populated from auth.users when auth.getUser() validates
+  // against the auth server — surfaces in the GBP "connected" pill.
+  const userEmail = user.email ?? null
 
   // Find the owner's first (oldest) location.
   const { data: location, error: locErr } = await supabase
@@ -37,6 +40,7 @@ export async function GET(): Promise<NextResponse> {
     return NextResponse.json({
       locationId: null,
       restaurantName: null,
+      email: userEmail,
       brandVoice: null,
       notifications: null,
       subscription: null,
@@ -75,6 +79,7 @@ export async function GET(): Promise<NextResponse> {
   return NextResponse.json({
     locationId,
     restaurantName: location.name as string,
+    email: userEmail,
     brandVoice: bvResult.data ? {
       personality: bvResult.data.personality as string,
       avoid: bvResult.data.avoid as string,

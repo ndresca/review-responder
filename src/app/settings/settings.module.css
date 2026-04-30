@@ -6,9 +6,16 @@
 }
 
 /* ── Paused banner ──────────────────────────────────────────────────── */
-/* Conditionally rendered (only when paused=true) so there's no empty gap
-   at the top of the page in the common running state. margin-top creates
-   breathing room from the viewport top when shown. */
+/* Always rendered with a fixed-height slot so toggling pause doesn't shift
+   the page below. The slot keeps its space; the inner banner uses
+   visibility:hidden (set inline by the page) when not paused, so it stays
+   in flow but invisible. min-height matches banner height + border so the
+   reserved space is the same as the rendered space. */
+.pausedBannerSlot {
+  margin-top: 16px;
+  min-height: 42px;
+}
+
 .pausedBanner {
   font-family: var(--font-body);
   font-size: 13px;
@@ -17,7 +24,6 @@
   border: 1px solid rgba(200, 68, 15, 0.2);
   border-radius: var(--radius-md);
   padding: 10px 16px;
-  margin-top: 16px;
   text-align: center;
 }
 
@@ -166,6 +172,27 @@
   border-radius: 9999px;
 }
 
+/* Replaces .statusPill after the user disconnects GBP. Muted styling so
+   it reads as a neutral state rather than an error. */
+.statusPillDisconnected {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--border);
+  padding: 4px 10px;
+  border-radius: 9999px;
+}
+
+/* Confirmation copy shown beneath the GBP row after a successful disconnect. */
+.disconnectConfirmation {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+
 .statusDot {
   width: 6px;
   height: 6px;
@@ -190,14 +217,21 @@
 }
 
 .disconnectLink {
+  font-family: var(--font-body);
   font-size: 12px;
   color: var(--error);
-  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
   margin-left: auto;
+  text-decoration: none;
   transition: opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .disconnectLink:hover { opacity: 0.7; }
+.disconnectLink:disabled { opacity: 0.55; cursor: default; }
 .disconnectLink:focus-visible { outline: 2px solid var(--error); outline-offset: 3px; border-radius: 2px; }
 
 /* ── Notification toggles ────────────────────────────────────────────── */
@@ -328,29 +362,6 @@
   line-height: 1.5;
 }
 
-.btnMutedOutline {
-  font-family: var(--font-body);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
-  background: transparent;
-  border: 1.5px solid var(--border-med);
-  border-radius: var(--radius-md);
-  padding: 8px 16px;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
-  white-space: nowrap;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.btnMutedOutline:hover {
-  color: var(--text);
-  border-color: var(--muted);
-}
-
-.btnMutedOutline:active { transform: scale(0.97); }
-.btnMutedOutline:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-
 .deleteLink {
   font-size: 13px;
   font-weight: 600;
@@ -369,7 +380,11 @@
 .deleteLink:hover { opacity: 0.7; }
 .deleteLink:focus-visible { outline: 2px solid var(--error); outline-offset: 3px; border-radius: 2px; }
 
-/* ── Cancel subscription link ──────────────────────────────────────── */
+/* ── Muted danger-zone link ──────────────────────────────────────────
+   Shared by Cancel subscription, Delete account, and Pause/Resume
+   auto-posting. All three render identically — muted text, no border,
+   neutral hover. No state-dependent rules here so toggling one row
+   (e.g. pause flipping) can't bleed color into another row's link. */
 .cancelSubLink {
   font-family: var(--font-body);
   font-size: 13px;
@@ -383,6 +398,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 .cancelSubLink:hover { color: var(--text); }
+.cancelSubLink:disabled { opacity: 0.55; cursor: default; }
 
 /* ── Textarea + select (used by inline brand-voice edit) ──────────── */
 .textarea {

@@ -41,6 +41,7 @@ const EMPTY_DEFAULTS = {
 type LoadResponse = {
   locationId: string | null
   restaurantName: string | null
+  email: string | null
   brandVoice: {
     personality: string
     avoid: string
@@ -135,6 +136,11 @@ function SettingsContent() {
   // Delete-account flow
   const [deleting, setDeleting] = useState(false)
 
+  // Email + GBP disconnect flow
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [gbpDisconnecting, setGbpDisconnecting] = useState(false)
+  const [gbpDisconnected, setGbpDisconnected] = useState(false)
+
   // Saved snapshot for dirty checking. Bumping savedVersion forces re-render
   // after save. Initialised to the empty defaults so isDirty() is false on
   // mount; replaced with the actual loaded values once the load fetch resolves.
@@ -166,6 +172,7 @@ function SettingsContent() {
         // locationId from API takes precedence over the URL param — the
         // server resolves "the owner's first location" definitively.
         if (data.locationId) setLocationId(data.locationId)
+        setUserEmail(data.email)
 
         // Apply each block independently so a partially-onboarded account
         // (brand_voices set, notifications not) still gets what it has.
@@ -374,6 +381,29 @@ function SettingsContent() {
     }
   }
 
+  // Disconnect Google Business Profile — deletes oauth_tokens server-side
+  // and flips auto_post_enabled to false. UI flips the pill to a muted
+  // "Disconnected" badge and hides the disconnect link on success.
+  async function handleDisconnectGoogle() {
+    if (gbpDisconnecting) return
+    setGbpDisconnecting(true)
+    try {
+      const res = await fetch('/api/settings/disconnect-google', { method: 'POST' })
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        console.error(`POST /api/settings/disconnect-google failed: HTTP ${res.status}`, body)
+        return
+      }
+      setGbpDisconnected(true)
+      // Auto-post is also off now — reflect that in the danger zone.
+      setPaused(true)
+    } catch (err) {
+      console.error('POST /api/settings/disconnect-google threw:', err)
+    } finally {
+      setGbpDisconnecting(false)
+    }
+  }
+
   async function handleDeleteAccount() {
     if (deleting) return
     setDeleting(true)
@@ -397,16 +427,19 @@ function SettingsContent() {
 
   return (
     <main className={styles.page}>
-      {/* Paused banner — only renders when actually paused, so there's no
-          empty gap at the top of the page in the common (running) state.
-          Toggling pause does shift the page below by ~56px, but the user
-          clicks Pause/Resume in the danger zone (bottom) and the banner
-          appears at the top, so the shift is offscreen during the action. */}
-      {paused && (
-        <div className={styles.pausedBanner} role="alert">
+      {/* Paused banner — always rendered with a fixed-height slot so toggling
+          pause doesn't shift the page below. visibility:hidden keeps the slot
+          in flow when the banner is inactive. */}
+      <div
+        className={styles.pausedBannerSlot}
+        style={paused ? undefined : { visibility: 'hidden' }}
+        role="alert"
+        aria-hidden={paused ? undefined : 'true'}
+      >
+        <div className={styles.pausedBanner}>
           Auto-posting is paused. Reviews are not being responded to.
         </div>
-      )}
+      </div>
 
       {/* Back nav */}
       <nav className={styles.backNav} aria-label="Navigation">
@@ -471,13 +504,33 @@ function SettingsContent() {
         <div className={styles.field}>
           <label className={styles.fieldLabel}>Google Business Profile</label>
           <div className={styles.gbpStatus}>
-            <span className={styles.statusPill}>
-              <span className={styles.statusDot} aria-hidden="true" />
-              Connected
-            </span>
-            <span className={styles.statusEmail}>owner@cafeluna.com</span>
-            <a href="#" className={styles.disconnectLink} aria-label="Disconnect Google Business Profile">Disconnect</a>
+            {gbpDisconnected ? (
+              <span className={styles.statusPillDisconnected}>
+                Disconnected
+              </span>
+            ) : (
+              <span className={styles.statusPill}>
+                <span className={styles.statusDot} aria-hidden="true" />
+                Connected
+              </span>
+            )}
+            {userEmail && <span className={styles.statusEmail}>{userEmail}</span>}
+            {!gbpDisconnected && (
+              <button
+                className={styles.disconnectLink}
+                onClick={handleDisconnectGoogle}
+                disabled={gbpDisconnecting}
+                aria-label="Disconnect Google Business Profile"
+              >
+                {gbpDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+              </button>
+            )}
           </div>
+          {gbpDisconnected && (
+            <p className={styles.disconnectConfirmation}>
+              Google Business Profile disconnected. Auto-posting is now off — reconnect to resume.
+            </p>
+          )}
         </div>
       </section>
 
@@ -606,14 +659,18 @@ function SettingsContent() {
               {paused ? 'Auto-posting is currently paused.' : 'Responses will stop until you resume.'}
             </span>
           </div>
+          {/* Muted text link — same .cancelSubLink class the other danger-zone
+              actions use. No filled/outlined button styling, no inline color
+              overrides — keeps the visual weight consistent across the row
+              and avoids the color-bleed that the previous outlined button
+              created when paused flipped to green. */}
           <button
-            className={styles.btnMutedOutline}
+            className={styles.cancelSubLink}
             aria-label={paused ? 'Resume auto-posting' : 'Pause auto-posting'}
             onClick={handleToggleAutoPost}
             disabled={pauseToggling}
-            style={paused ? { color: 'var(--success)', borderColor: 'var(--success)' } : undefined}
           >
-            {pauseToggling ? '...' : (paused ? 'Resume' : 'Pause')}
+            {pauseToggling ? '...' : (paused ? 'Resume auto-posting' : 'Pause auto-posting')}
           </button>
         </div>
 
