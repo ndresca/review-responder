@@ -227,14 +227,16 @@
 
 .textInput, .textarea, .select {
   font-family: var(--font-body);
-  font-size: 14px;
+  /* 16px minimum to prevent iOS Safari auto-zoom on focus. Matches the
+     same constant used for settings inputs. */
+  font-size: 16px;
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--border-med);
   border-radius: var(--radius-md);
   padding: 12px 14px;
   width: 100%;
-  line-height: 1.6;
+  line-height: 1.5;
   outline: none;
   transition: border-color 0.15s;
   -webkit-appearance: none;
