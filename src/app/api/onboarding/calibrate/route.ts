@@ -6,6 +6,7 @@ import OpenAI from 'openai'
 import { decrypt, encrypt } from '@/lib/crypto'
 import { refreshOAuthToken } from '@/lib/gbp-client'
 import { buildCalibrationPrompt } from '@/prompts/calibration'
+import { sanitizeForPrompt } from '@/lib/sanitize'
 import type { BrandVoice, ExistingResponse, ScenarioType } from '@/lib/types'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -417,10 +418,18 @@ export async function PATCH(request: Request): Promise<NextResponse> {
 
     exampleId = body.exampleId
     decision = body.decision as typeof decision
-    // Cap editedText at 2000 chars to bound prompt size and prevent runaway
-    // input from blowing up the regen call. The schema column is plain text
-    // (no length limit), so this is the enforcement point.
-    editedText = body.editedText?.slice(0, 2000)
+    // Cap editedText at 2000 chars to bound prompt size, then sanitize
+    // injection-shaped lines before storing. This is the value that becomes
+    // calibration_examples.edited_text and feeds back into future generate
+    // prompts as a few-shot example, so it needs the same scrubbing as
+    // brand-voice fields. Empty after sanitize → undefined (the empty-check
+    // above already returned 400 for trim-empty input, but sanitize can
+    // also produce empty if the entire input was injection-shaped).
+    {
+      const capped = body.editedText?.slice(0, 2000)
+      const sanitized = sanitizeForPrompt(capped)
+      editedText = sanitized || undefined
+    }
     // Optional free-form note from the owner about why the previous response
     // missed the mark — flows into the regen prompt as an extra guideline.
     // Cap at 500 chars to keep the prompt focused and prevent injection of
