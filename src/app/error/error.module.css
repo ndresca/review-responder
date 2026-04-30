@@ -82,30 +82,17 @@
 .btnPrimary:hover { opacity: 0.88; }
 .btnPrimary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-/* Secondary action — same shape as primary but muted-outline, so when
-   shown alongside it the two read as parallel options rather than
-   "primary + footnote." Sits below the primary in .actions (column flex). */
-.btnSecondary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+/* Secondary action — small muted text link beneath the primary button.
+   Deliberately not button-styled so it doesn't compete with the main
+   action; it's a quiet escape hatch for users who can't proceed with
+   the primary action and need to reach support directly. */
+.supportLink {
   font-family: var(--font-body);
-  font-size: 15px;
-  font-weight: 600;
-  background: transparent;
+  font-size: 13px;
   color: var(--muted);
-  border: 1.5px solid var(--border-med);
-  border-radius: var(--radius-md);
-  padding: 11.5px 28px; /* compensates for border so heights match .btnPrimary */
-  cursor: pointer;
   text-decoration: none;
-  transition: border-color 0.15s, color 0.15s;
-  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s;
 }
 
-.btnSecondary:hover {
-  color: var(--text);
-  border-color: var(--muted);
-}
-
-.btnSecondary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.supportLink:hover { color: var(--text); }
+.supportLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
