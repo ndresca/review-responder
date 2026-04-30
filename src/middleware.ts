@@ -9,8 +9,15 @@ import type { NextRequest } from 'next/server'
 // All other routes pass through — landing, onboarding, the API routes (which
 // do their own per-route cookie checks), the error page, etc.
 export function middleware(request: NextRequest) {
-  const sessionCookie = request.cookies.get('autoplier_session')?.value
-  if (sessionCookie) return NextResponse.next()
+  const sessionCookie = request.cookies.get('autoplier_session')
+  // Shape check at the edge — bail on missing/empty/non-UUID values without
+  // calling the API. The full validation (does the user actually exist?)
+  // happens in route-level getValidSession; the middleware just keeps the
+  // obvious garbage out without DB latency. UUID v4 is 36 chars including
+  // hyphens — 8-4-4-4-12.
+  if (sessionCookie?.value && sessionCookie.value.length === 36) {
+    return NextResponse.next()
+  }
 
   // Redirect to /onboarding, preserving the original destination as ?next=
   // so a future enhancement could bounce the user back after auth. We don't
@@ -23,6 +30,8 @@ export function middleware(request: NextRequest) {
 
 // matcher restricts which routes the middleware runs on. Keeping this narrow
 // avoids unnecessary edge-runtime overhead on routes that don't need the gate.
+// /history is added so unauthenticated traffic redirects at the edge instead
+// of rendering a broken loading state and 401ing from the API.
 export const config = {
-  matcher: ['/dashboard/:path*', '/settings/:path*'],
+  matcher: ['/dashboard/:path*', '/settings/:path*', '/history/:path*'],
 }
