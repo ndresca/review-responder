@@ -2,126 +2,49 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import EditableResponse from '@/components/EditableResponse'
 import styles from './history.module.css'
 
-interface ReviewEntry {
-  id: string
-  reviewer: string
-  location: string
-  stars: number
-  datetime: string
-  time: string
+// Shape returned by GET /api/history/load.
+type HistoryEntry = {
+  reviewId: string
+  reviewerName: string
+  rating: number
   reviewText: string
-  response: string
-  status: 'posted' | 'needs attention'
+  reviewCreatedAt: string | null
+  responseText: string
+  status: string
+  postedAt: string | null
 }
 
-const MOCK_REVIEWS: ReviewEntry[] = [
-  {
-    id: '1',
-    reviewer: 'Marco Testa',
-    location: 'Cafe Luna · Downtown',
-    stars: 5,
-    datetime: '2026-04-07T10:14:00',
-    time: '2h ago',
-    reviewText:
-      '"Incredible carbonara. We\'ll definitely be back — the service was warm and attentive throughout."',
-    response:
-      'Thank you so much, Marco! We\'re thrilled the carbonara hit the spot — it\'s one of our favourites too. We look forward to welcoming you back soon.',
-    status: 'posted',
-  },
-  {
-    id: '2',
-    reviewer: 'Priya Mehta',
-    location: 'Cafe Luna · Midtown',
-    stars: 4,
-    datetime: '2026-04-06T19:30:00',
-    time: 'Yesterday',
-    reviewText:
-      '"Loved the risotto and the ambiance. The wait was a bit long but worth every minute."',
-    response:
-      'Thank you, Priya! We\'re so glad you enjoyed the risotto and the atmosphere. We hear you on the wait — we\'re working on it. Hope to see you again soon.',
-    status: 'posted',
-  },
-  {
-    id: '3',
-    reviewer: 'James Kirkwood',
-    location: 'Cafe Luna · Downtown',
-    stars: 5,
-    datetime: '2026-04-05T13:05:00',
-    time: '2 days ago',
-    reviewText: '"Best tiramisu in the city, full stop."',
-    response:
-      'That might be the kindest thing anyone\'s said about our tiramisu! Thank you, James — see you next time.',
-    status: 'posted',
-  },
-  {
-    id: '4',
-    reviewer: 'Sophie Laurent',
-    location: 'Cafe Luna · Midtown',
-    stars: 2,
-    datetime: '2026-04-04T21:45:00',
-    time: '3 days ago',
-    reviewText:
-      '"Waited over an hour for our mains. The pasta was cold when it arrived and the server didn\'t seem to care. Really disappointing for the price."',
-    response:
-      'We\'re truly sorry about your experience, Sophie. That\'s not the standard we hold ourselves to. We\'ve spoken with our team about this directly. If you\'d be open to it, we\'d love the chance to make it right.',
-    status: 'needs attention',
-  },
-  {
-    id: '5',
-    reviewer: 'David Chen',
-    location: 'Cafe Luna · Downtown',
-    stars: 5,
-    datetime: '2026-04-03T12:20:00',
-    time: '4 days ago',
-    reviewText:
-      '"Came for a birthday lunch and the team went above and beyond. Free dessert, a handwritten note, and genuinely warm service. Will be our go-to from now on."',
-    response:
-      'Happy belated birthday, David! Making those moments special is what we love most. Can\'t wait to celebrate with you again.',
-    status: 'posted',
-  },
-  {
-    id: '6',
-    reviewer: 'Emma Rossi',
-    location: 'Cafe Luna · Midtown',
-    stars: 3,
-    datetime: '2026-04-02T18:10:00',
-    time: '5 days ago',
-    reviewText:
-      '"The food is solid — good flavors, generous portions. But the music was way too loud and the lighting felt more like a nightclub than a restaurant. Hard to have a conversation."',
-    response:
-      'Thanks for the honest feedback, Emma. We\'re glad the food landed well! The music and lighting are something we\'re actively reviewing. We hope to see you again.',
-    status: 'posted',
-  },
-  {
-    id: '7',
-    reviewer: 'Alex Petrov',
-    location: 'Cafe Luna · Downtown',
-    stars: 1,
-    datetime: '2026-04-01T20:30:00',
-    time: '6 days ago',
-    reviewText:
-      '"Found a hair in my soup. When I told the waiter, he shrugged and offered to bring another bowl. No apology, no discount. Won\'t be returning."',
-    response:
-      'We\'re deeply sorry, Alex. That\'s completely unacceptable and we\'ve addressed it with our staff. Please reach out to us directly — we\'d like to make this right.',
-    status: 'needs attention',
-  },
-  {
-    id: '8',
-    reviewer: 'Rachel Kim',
-    location: 'Cafe Luna · Midtown',
-    stars: 4,
-    datetime: '2026-03-31T14:00:00',
-    time: '1 week ago',
-    reviewText:
-      '"Great brunch spot. The eggs benedict were perfectly poached and the coffee was excellent. Only knock is the seating is a bit cramped."',
-    response:
-      'Thank you, Rachel! The eggs benedict are a point of pride for our chef. We hear you on the seating — we\'re exploring some layout changes. See you at brunch!',
-    status: 'posted',
-  },
-]
+type HistoryData = {
+  locationId: string | null
+  locationName: string | null
+  entries: HistoryEntry[]
+}
+
+// Compact relative-time formatter, mirrors the dashboard helper.
+function timeAgo(iso: string | null): string {
+  if (!iso) return ''
+  const ms = Date.now() - new Date(iso).getTime()
+  if (ms < 60_000) return 'Just now'
+  const minutes = Math.floor(ms / 60_000)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(ms / 3_600_000)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(ms / 86_400_000)
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return `${days} days ago`
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+// Maps responses_posted.status to the two-state UI label. Anything that's
+// not 'posted' is "needs attention" — covers failed, blocked_pending_regen,
+// and retrying.
+function statusLabel(status: string): 'posted' | 'needs attention' {
+  return status === 'posted' ? 'posted' : 'needs attention'
+}
 
 function StarRating({ count }: { count: number }) {
   const clamped = Math.max(0, Math.min(5, count))
@@ -134,14 +57,54 @@ function StarRating({ count }: { count: number }) {
 }
 
 export default function HistoryPage() {
-  const [reviews, setReviews] = useState<ReviewEntry[]>(MOCK_REVIEWS)
+  const router = useRouter()
 
+  const [data, setData] = useState<HistoryData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  // Initial load + 60s polling so the page reflects new responses without
+  // a manual refresh. Same pattern the previous mock implementation used,
+  // now with a real fetch.
   useEffect(() => {
-    const interval = setInterval(() => {
-      setReviews([...MOCK_REVIEWS])
-    }, 60000)
-    return () => clearInterval(interval)
-  }, [])
+    let cancelled = false
+
+    async function load(initial: boolean) {
+      try {
+        const res = await fetch('/api/history/load')
+        if (cancelled) return
+
+        if (res.status === 401) {
+          router.push('/onboarding')
+          return
+        }
+        if (!res.ok) {
+          const body = await res.text().catch(() => '')
+          console.error(`GET /api/history/load failed: HTTP ${res.status}`, body)
+          if (initial) setLoadError("We couldn't load your review history. Try refreshing.")
+          return
+        }
+
+        const payload = (await res.json()) as HistoryData
+        if (cancelled) return
+        setData(payload)
+        setLoadError(null)
+      } catch (err) {
+        if (cancelled) return
+        console.error('GET /api/history/load threw:', err)
+        if (initial) setLoadError('Network error — check your connection and try again.')
+      } finally {
+        if (!cancelled && initial) setLoading(false)
+      }
+    }
+
+    load(true)
+    const interval = setInterval(() => load(false), 60_000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [router])
 
   return (
     <main className={styles.page}>
@@ -154,37 +117,60 @@ export default function HistoryPage() {
       <h1 className={styles.title}>Review history.</h1>
       <p className={styles.refreshLabel}>Updates every 60 seconds.</p>
 
-      <div className={styles.list}>
-        {reviews.map((review) => (
-          <article key={review.id} className={styles.card}>
-            <div className={styles.cardTop}>
-              <div className={styles.cardIdentity}>
-                <StarRating count={review.stars} />
-                <div>
-                  <span className={styles.cardReviewer}>{review.reviewer}</span>
-                  <span className={styles.cardLocation}>{review.location}</span>
+      {loading && (
+        <div className={styles.loadingWrap} role="status" aria-live="polite">
+          <span className={styles.spinner} aria-hidden="true" />
+          <span className={styles.loadingText}>Loading your history...</span>
+        </div>
+      )}
+
+      {!loading && loadError && (
+        <p className={styles.errorNotice} role="alert">{loadError}</p>
+      )}
+
+      {!loading && !loadError && data && data.entries.length === 0 && (
+        <p className={styles.emptyNotice}>
+          No responses yet. New reviews and replies will appear here within 15 minutes of being posted.
+        </p>
+      )}
+
+      {!loading && !loadError && data && data.entries.length > 0 && (
+        <div className={styles.list}>
+          {data.entries.map((entry) => {
+            const label = statusLabel(entry.status)
+            const time = timeAgo(entry.postedAt ?? entry.reviewCreatedAt)
+            return (
+              <article key={entry.reviewId} className={styles.card}>
+                <div className={styles.cardTop}>
+                  <div className={styles.cardIdentity}>
+                    <StarRating count={entry.rating} />
+                    <div>
+                      <span className={styles.cardReviewer}>{entry.reviewerName || 'Anonymous'}</span>
+                      {data.locationName && (
+                        <span className={styles.cardLocation}>{data.locationName}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className={styles.cardMeta}>
+                    <span
+                      className={`${styles.badge} ${
+                        label === 'posted' ? styles.badgePosted : styles.badgeAttention
+                      }`}
+                    >
+                      {label === 'posted' ? 'Posted' : 'Needs attention'}
+                    </span>
+                    <time className={styles.cardTime} dateTime={entry.postedAt ?? entry.reviewCreatedAt ?? ''}>
+                      {time}
+                    </time>
+                  </div>
                 </div>
-              </div>
-              <div className={styles.cardMeta}>
-                <span
-                  className={`${styles.badge} ${
-                    review.status === 'posted'
-                      ? styles.badgePosted
-                      : styles.badgeAttention
-                  }`}
-                >
-                  {review.status === 'posted' ? 'Posted' : 'Needs attention'}
-                </span>
-                <time className={styles.cardTime} dateTime={review.datetime}>
-                  {review.time}
-                </time>
-              </div>
-            </div>
-            <p className={styles.cardText}>{review.reviewText}</p>
-            <EditableResponse response={review.response} tagLabel="AI response" />
-          </article>
-        ))}
-      </div>
+                <p className={styles.cardText}>{entry.reviewText}</p>
+                <EditableResponse response={entry.responseText} tagLabel="AI response" />
+              </article>
+            )
+          })}
+        </div>
+      )}
     </main>
   )
 }

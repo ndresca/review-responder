@@ -6,14 +6,9 @@
 }
 
 /* ── Paused banner ──────────────────────────────────────────────────── */
-/* Reserve banner space always so toggling pause doesn't shift the page.
-   The slot has fixed height; the inner banner uses visibility (not
-   display) so the layout space is reserved either way. */
-.pausedBannerSlot {
-  margin-top: 16px;
-  min-height: 42px;
-}
-
+/* Conditionally rendered (only when paused=true) so there's no empty gap
+   at the top of the page in the common running state. margin-top creates
+   breathing room from the viewport top when shown. */
 .pausedBanner {
   font-family: var(--font-body);
   font-size: 13px;
@@ -22,6 +17,7 @@
   border: 1px solid rgba(200, 68, 15, 0.2);
   border-radius: var(--radius-md);
   padding: 10px 16px;
+  margin-top: 16px;
   text-align: center;
 }
 
