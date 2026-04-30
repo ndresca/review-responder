@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
+import { getValidSession } from '@/lib/session'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-03-25.dahlia',
@@ -21,8 +22,9 @@ function buildServiceSupabase() {
 // session cookie, returns { success: true }.
 export async function DELETE(): Promise<NextResponse> {
   const cookieStore = await cookies()
-  const ownerId = cookieStore.get('autoplier_session')?.value
-  if (!ownerId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await getValidSession(cookieStore)
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ownerId = session.ownerId
 
   const supabase = buildServiceSupabase()
 
@@ -79,15 +81,17 @@ export async function DELETE(): Promise<NextResponse> {
     for (const table of tables) {
       const { error } = await supabase.from(table).delete().in('location_id', locationIds)
       if (error) {
+        // Log the table name internally; client gets a generic message so
+        // schema details don't leak.
         console.error(`delete-account: delete from ${table} failed:`, error.message)
-        return NextResponse.json({ error: `Failed to delete ${table}` }, { status: 500 })
+        return NextResponse.json({ error: 'Failed to delete account data.' }, { status: 500 })
       }
     }
 
     const { error: locDelErr } = await supabase.from('locations').delete().eq('owner_id', ownerId)
     if (locDelErr) {
       console.error('delete-account: delete from locations failed:', locDelErr.message)
-      return NextResponse.json({ error: 'Failed to delete locations' }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to delete account data.' }, { status: 500 })
     }
   }
 
@@ -96,7 +100,7 @@ export async function DELETE(): Promise<NextResponse> {
   const { error: authErr } = await supabase.auth.admin.deleteUser(ownerId)
   if (authErr) {
     console.error('delete-account: auth.admin.deleteUser failed:', authErr.message)
-    return NextResponse.json({ error: 'Failed to delete auth user' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to remove account.' }, { status: 500 })
   }
 
   // 5. Clear the session cookie so the client is logged out on the redirect.

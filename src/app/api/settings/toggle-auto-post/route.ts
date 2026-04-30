@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { getValidSession } from '@/lib/session'
 
 function buildServiceSupabase() {
   const url = process.env.SUPABASE_URL
@@ -31,8 +32,9 @@ const BRAND_VOICE_DEFAULTS = {
 // Previously this hard-failed with "Brand voice not found".
 export async function POST(): Promise<NextResponse> {
   const cookieStore = await cookies()
-  const ownerId = cookieStore.get('autoplier_session')?.value
-  if (!ownerId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await getValidSession(cookieStore)
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ownerId = session.ownerId
 
   const supabase = buildServiceSupabase()
 

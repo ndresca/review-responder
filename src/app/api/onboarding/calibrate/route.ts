@@ -257,6 +257,29 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  // Per-user rate limit: max 3 calibration sessions per location per hour.
+  // Each session fires 6 OpenAI calls (~$0.40 each) so an unauthenticated
+  // bill-attack is the worst case, but even authed-but-malicious is worth
+  // bounding. Enforced by counting calibration_sessions rows created in the
+  // last 60 minutes.
+  const oneHourAgoIso = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  const { count: recentSessions, error: rateErr } = await supabase
+    .from('calibration_sessions')
+    .select('id', { count: 'exact', head: true })
+    .eq('location_id', locationId)
+    .gte('created_at', oneHourAgoIso)
+
+  if (rateErr) {
+    console.error('calibrate POST: rate-limit count failed:', rateErr.message)
+    return NextResponse.json({ error: 'Failed to check rate limit' }, { status: 500 })
+  }
+  if ((recentSessions ?? 0) >= 3) {
+    return NextResponse.json(
+      { error: 'Too many calibration attempts. Please wait before trying again.' },
+      { status: 429 },
+    )
+  }
+
   // Load brand voice
   const { data: bvRow, error: bvErr } = await supabase
     .from('brand_voices')
@@ -394,7 +417,10 @@ export async function PATCH(request: Request): Promise<NextResponse> {
 
     exampleId = body.exampleId
     decision = body.decision as typeof decision
-    editedText = body.editedText
+    // Cap editedText at 2000 chars to bound prompt size and prevent runaway
+    // input from blowing up the regen call. The schema column is plain text
+    // (no length limit), so this is the enforcement point.
+    editedText = body.editedText?.slice(0, 2000)
     // Optional free-form note from the owner about why the previous response
     // missed the mark — flows into the regen prompt as an extra guideline.
     // Cap at 500 chars to keep the prompt focused and prevent injection of

@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
+import { getValidSession } from '@/lib/session'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-03-25.dahlia',
@@ -16,8 +17,9 @@ function buildServiceSupabase() {
 
 export async function POST(request: Request): Promise<NextResponse> {
   const cookieStore = await cookies()
-  const ownerId = cookieStore.get('autoplier_session')?.value
-  if (!ownerId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await getValidSession(cookieStore)
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ownerId = session.ownerId
 
   let locationId: string
   try {

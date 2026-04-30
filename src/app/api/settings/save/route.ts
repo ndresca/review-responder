@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { getValidSession } from '@/lib/session'
 
 function buildServiceSupabase() {
   const url = process.env.SUPABASE_URL
@@ -11,6 +12,7 @@ function buildServiceSupabase() {
 
 type SaveBody = {
   locationId?: string
+  restaurantName?: string
   personality?: string
   avoid?: string
   signaturePhrases?: string[]
@@ -21,13 +23,48 @@ type SaveBody = {
   timezone?: string
 }
 
+// Length caps — bounds prompt size for downstream LLM calls and prevents
+// users from writing 1GB of text into a TEXT column that would then crash
+// every cron tick that loads it. Returns null if the input passes; an error
+// response if it doesn't.
+const MAX_LENGTHS = {
+  restaurantName: 200,
+  personality: 1000,
+  avoid: 500,
+  signaturePhraseCount: 10,
+  signaturePhraseLength: 100,
+} as const
+
+function validateLengths(body: SaveBody): NextResponse | null {
+  if (typeof body.restaurantName === 'string' && body.restaurantName.length > MAX_LENGTHS.restaurantName) {
+    return NextResponse.json({ error: `restaurantName must be ${MAX_LENGTHS.restaurantName} characters or fewer` }, { status: 400 })
+  }
+  if (typeof body.personality === 'string' && body.personality.length > MAX_LENGTHS.personality) {
+    return NextResponse.json({ error: `personality must be ${MAX_LENGTHS.personality} characters or fewer` }, { status: 400 })
+  }
+  if (typeof body.avoid === 'string' && body.avoid.length > MAX_LENGTHS.avoid) {
+    return NextResponse.json({ error: `avoid must be ${MAX_LENGTHS.avoid} characters or fewer` }, { status: 400 })
+  }
+  if (Array.isArray(body.signaturePhrases)) {
+    if (body.signaturePhrases.length > MAX_LENGTHS.signaturePhraseCount) {
+      return NextResponse.json({ error: `signaturePhrases can have at most ${MAX_LENGTHS.signaturePhraseCount} items` }, { status: 400 })
+    }
+    for (const phrase of body.signaturePhrases) {
+      if (typeof phrase === 'string' && phrase.length > MAX_LENGTHS.signaturePhraseLength) {
+        return NextResponse.json({ error: `each signature phrase must be ${MAX_LENGTHS.signaturePhraseLength} characters or fewer` }, { status: 400 })
+      }
+    }
+  }
+  return null
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
-  // Auth: read the lightweight session cookie set by the OAuth callback.
-  // The cookie value is the auth user's id (ownerId). httpOnly so client JS
-  // can't read it — only this server-side route can.
+  // Auth: validated session cookie. getValidSession verifies the cookie
+  // value is a UUID AND that the user still exists in auth.users.
   const cookieStore = await cookies()
-  const ownerId = cookieStore.get('autoplier_session')?.value
-  if (!ownerId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await getValidSession(cookieStore)
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ownerId = session.ownerId
 
   let body: SaveBody
   try {
@@ -35,6 +72,9 @@ export async function POST(request: Request): Promise<NextResponse> {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
+
+  const lengthError = validateLengths(body)
+  if (lengthError) return lengthError
 
   const { locationId, personality, avoid, signaturePhrases, language,
           frequency, digestDay, digestTime, timezone } = body
