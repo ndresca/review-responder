@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { setLanguage, useTranslation } from '@/lib/i18n-client'
 import type { Lang } from '@/lib/i18n'
 import styles from './footer.module.css'
@@ -17,10 +18,11 @@ import styles from './footer.module.css'
 
 export function Footer() {
   const { t, lang } = useTranslation()
+  const router = useRouter()
 
   function pick(next: Lang) {
     if (next === lang) return
-    setLanguage(next)
+    setLanguage(next, router)
   }
 
   return (
