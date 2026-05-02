@@ -1168,6 +1168,13 @@ function OnboardingContent() {
             <p className={styles.fieldError}>{t.onbStep5MissingLocation}</p>
           )}
           <p className={styles.paymentSecured}>{t.onbStep5SecuredByStripe}</p>
+          {/* TODO: remove before launch */}
+          <button
+            className={styles.skipLink}
+            onClick={() => router.push('/dashboard')}
+          >
+            {t.skipForNow}
+          </button>
         </section>
       )}
       <Footer />
