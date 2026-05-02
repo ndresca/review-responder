@@ -20,6 +20,18 @@ export type OutputCheckResult = {
   reason?: string
 }
 
+// Detects whether a generated response echoed the per-request UNTRUSTED-CONTENT
+// delimiter back into its output. LLMs occasionally leak delimiters
+// verbatim — without this check, a string like
+// "--UNTRUSTED-CONTENT-d3f4...--" would land directly on a public Google
+// review. The exact UUID isn't needed; the literal "--UNTRUSTED-CONTENT-"
+// prefix is enough since that string is reserved for prompt internals.
+const DELIMITER_ECHO = /--(?:END-)?UNTRUSTED-CONTENT-/i
+
+export function containsDelimiterEcho(text: string): boolean {
+  return DELIMITER_ECHO.test(text)
+}
+
 function extractTokens(text: string): { urls: Set<string>; phones: Set<string> } {
   const urls = new Set<string>()
   const phones = new Set<string>()
@@ -59,6 +71,13 @@ export function checkOutputAllowlist(
   response: string,
   calibrationExamples: CalibrationExample[],
 ): OutputCheckResult {
+  // Layer 4: delimiter echo. LLMs sometimes leak the per-request
+  // UNTRUSTED-CONTENT-{uuid} delimiter into their output. We never want
+  // those strings posted publicly — reject before any URL/phone check.
+  if (containsDelimiterEcho(response)) {
+    return { pass: false, reason: 'Response echoed prompt delimiter (UNTRUSTED-CONTENT) — likely model error' }
+  }
+
   const responseTokens = extractTokens(response)
 
   if (responseTokens.urls.size === 0 && responseTokens.phones.size === 0) {
