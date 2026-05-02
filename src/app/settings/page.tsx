@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { LanguageToggle } from '@/components/LanguageToggle'
+import { Footer } from '@/components/Footer'
 import { useTranslation } from '@/lib/i18n-client'
 import styles from './settings.module.css'
 
@@ -456,7 +456,6 @@ function SettingsContent() {
           </svg>
           {t.setBackToDashboard}
         </a>
-        <LanguageToggle />
       </nav>
 
       {/* Unsaved changes dialog */}
@@ -768,6 +767,7 @@ function SettingsContent() {
           </div>
         </div>
       )}
+      <Footer />
     </main>
   )
 }

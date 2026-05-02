@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { LogoFull } from '@/components/LogoFull'
-import { LanguageToggle } from '@/components/LanguageToggle'
+import { Footer } from '@/components/Footer'
 import { getServerTranslation } from '@/lib/i18n-server'
 import styles from './landing.module.css'
 
@@ -16,9 +16,6 @@ export default async function LandingPage() {
       {/* Logo */}
       <header className={styles.logoWrap}>
         <LogoFull className={styles.logoImg} />
-        <div className={styles.langToggleWrap}>
-          <LanguageToggle />
-        </div>
       </header>
 
       {/* Hero */}
@@ -118,10 +115,7 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className={styles.siteFooter}>
-        Autoplier · <a href="mailto:contact@autoplier.com">contact@autoplier.com</a> · <Link href="/privacy">{t.landingFooterPrivacy}</Link>
-      </footer>
+      <Footer />
     </main>
   )
 }

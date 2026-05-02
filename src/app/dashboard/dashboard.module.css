@@ -218,16 +218,6 @@
   position: relative;
 }
 
-.headerRight {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
 /* Settings link — kept absolutely positioned in the header so the logo can
    center, but the click area is now exactly the text. The previous
    padding-top: 28px created an invisible 28px-tall hit zone above the text
@@ -238,6 +228,10 @@
   font-size: 13px;
   color: var(--muted);
   text-decoration: none;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
   transition: color 0.15s;
 }
 .settingsLink:hover { color: var(--text); }

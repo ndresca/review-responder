@@ -1,0 +1,83 @@
+/* Shared site footer. Sits at the bottom of every page; language switch
+   row above the brand line. Discrete, no borders, no background. */
+
+.footer {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 48px 24px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  font-family: var(--font-body);
+}
+
+/* Language row — two text buttons + a thin separator. */
+.langRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+
+/* Discrete near-black at ~40% opacity for inactive, ~80% for active.
+   No borders, no background, no underline. The active state is the only
+   weight-difference cue — opacity, not boldness. */
+.langOption {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 400;
+  color: rgba(28, 20, 16, 0.4);
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  text-decoration: none;
+  letter-spacing: 0.01em;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s, opacity 0.15s;
+}
+
+.langOption.active {
+  color: rgba(28, 20, 16, 0.8);
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .langOption:not(.active):hover {
+    color: rgba(28, 20, 16, 0.65);
+  }
+}
+
+.langOption:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.langSeparator {
+  color: rgba(28, 20, 16, 0.25);
+  font-size: 13px;
+  user-select: none;
+}
+
+/* Brand line — same styling as the prior landing footer. Pulls global
+   --muted token via the existing .siteFooter pattern. */
+.brandLine {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.brandLine a {
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+@media (hover: hover) {
+  .brandLine a:hover {
+    color: var(--text);
+  }
+}

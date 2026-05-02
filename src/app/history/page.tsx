@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import EditableResponse from '@/components/EditableResponse'
-import { LanguageToggle } from '@/components/LanguageToggle'
+import { Footer } from '@/components/Footer'
 import { useTranslation } from '@/lib/i18n-client'
 import type { Translation } from '@/lib/i18n'
 import styles from './history.module.css'
@@ -113,7 +113,6 @@ export default function HistoryPage() {
         <Link href="/dashboard" className={styles.backLink}>
           {t.histBackToDashboard}
         </Link>
-        <LanguageToggle />
       </header>
 
       <h1 className={styles.title}>{t.histTitle}</h1>
@@ -171,6 +170,7 @@ export default function HistoryPage() {
           })}
         </div>
       )}
+      <Footer />
     </main>
   )
 }

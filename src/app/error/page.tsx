@@ -4,7 +4,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { LogoFull } from '@/components/LogoFull'
-import { LanguageToggle } from '@/components/LanguageToggle'
+import { Footer } from '@/components/Footer'
 import { useTranslation } from '@/lib/i18n-client'
 import type { Translation } from '@/lib/i18n'
 import styles from './error.module.css'
@@ -66,9 +66,6 @@ function ErrorContent() {
     <main className={styles.page}>
       <header className={styles.pageHeader}>
         <LogoFull className={styles.logoImg} />
-        <div className={styles.langToggleWrap}>
-          <LanguageToggle />
-        </div>
       </header>
 
       <div className={styles.body}>
@@ -92,6 +89,7 @@ function ErrorContent() {
           )}
         </div>
       </div>
+      <Footer />
     </main>
   )
 }

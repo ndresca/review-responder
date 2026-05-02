@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import EditableResponse from '@/components/EditableResponse'
 import { LogoFull } from '@/components/LogoFull'
-import { LanguageToggle } from '@/components/LanguageToggle'
+import { Footer } from '@/components/Footer'
 import { useTranslation } from '@/lib/i18n-client'
 import type { Translation } from '@/lib/i18n'
 import styles from './dashboard.module.css'
@@ -144,10 +144,7 @@ export default function DashboardPage() {
       <main className={styles.page}>
         <header className={styles.pageHeader}>
           <LogoFull className={styles.logoImg} />
-          <div className={styles.headerRight}>
-            <LanguageToggle />
-            <Link href="/settings" className={styles.settingsLink}>{t.dashSettingsLink}</Link>
-          </div>
+          <Link href="/settings" className={styles.settingsLink}>{t.dashSettingsLink}</Link>
         </header>
         <section className={styles.statusHero} aria-label="Loading">
           <div className={styles.skeletonStatusRow} aria-hidden="true" />
@@ -164,6 +161,7 @@ export default function DashboardPage() {
             </div>
           ))}
         </section>
+        <Footer />
       </main>
     )
   }
@@ -173,14 +171,12 @@ export default function DashboardPage() {
       <main className={styles.page}>
         <header className={styles.pageHeader}>
           <LogoFull className={styles.logoImg} />
-          <div className={styles.headerRight}>
-            <LanguageToggle />
-            <Link href="/settings" className={styles.settingsLink}>{t.dashSettingsLink}</Link>
-          </div>
+          <Link href="/settings" className={styles.settingsLink}>{t.dashSettingsLink}</Link>
         </header>
         <section className={styles.statusHero}>
           <p className={styles.weeklyCount}>{loadError ?? ''}</p>
         </section>
+        <Footer />
       </main>
     )
   }
@@ -192,10 +188,7 @@ export default function DashboardPage() {
       {/* Nav */}
       <header className={styles.pageHeader}>
         <LogoFull className={styles.logoImg} />
-        <div className={styles.headerRight}>
-          <LanguageToggle />
-          <Link href="/settings" className={styles.settingsLink}>{t.dashSettingsLink}</Link>
-        </div>
+        <Link href="/settings" className={styles.settingsLink}>{t.dashSettingsLink}</Link>
       </header>
 
       {/* Status hero */}
@@ -270,6 +263,7 @@ export default function DashboardPage() {
           <span>{active ? t.dashAutoRepliesOn : t.dashAutoRepliesPaused}</span>
         </button>
       </footer>
+      <Footer />
     </main>
   )
 }

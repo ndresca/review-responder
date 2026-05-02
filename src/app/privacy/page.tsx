@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { LanguageToggle } from '@/components/LanguageToggle'
+import { Footer } from '@/components/Footer'
 import { getServerTranslation } from '@/lib/i18n-server'
 import styles from './privacy.module.css'
 
@@ -19,7 +19,6 @@ export default async function PrivacyPage() {
         <Link href="/" className={styles.backLink}>
           {t.privBackToLanding}
         </Link>
-        <LanguageToggle />
       </header>
 
       <h1 className={styles.title}>{t.privTitle}</h1>
@@ -84,6 +83,7 @@ export default async function PrivacyPage() {
         </p>
       </section>
 
+      <Footer />
     </main>
   )
 }

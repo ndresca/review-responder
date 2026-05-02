@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { LogoFull } from '@/components/LogoFull'
-import { LanguageToggle } from '@/components/LanguageToggle'
+import { Footer } from '@/components/Footer'
 import { useTranslation } from '@/lib/i18n-client'
 import type { Translation } from '@/lib/i18n'
 import styles from './onboarding.module.css'
@@ -647,9 +647,6 @@ function OnboardingContent() {
       {/* Logo */}
       <header className={styles.pageHeader}>
         <LogoFull className={styles.logoImg} />
-        <div className={styles.langToggleWrap}>
-          <LanguageToggle />
-        </div>
       </header>
 
       {/* Progress bar */}
@@ -1173,6 +1170,7 @@ function OnboardingContent() {
           <p className={styles.paymentSecured}>{t.onbStep5SecuredByStripe}</p>
         </section>
       )}
+      <Footer />
     </main>
   )
 }
