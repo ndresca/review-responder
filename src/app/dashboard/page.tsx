@@ -5,10 +5,11 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import EditableResponse from '@/components/EditableResponse'
 import { LogoFull } from '@/components/LogoFull'
+import { LanguageToggle } from '@/components/LanguageToggle'
+import { useTranslation } from '@/lib/i18n-client'
+import type { Translation } from '@/lib/i18n'
 import styles from './dashboard.module.css'
 
-// Dashboard load shape from GET /api/dashboard/load. Kept inline here rather
-// than in lib/types so the API and page can evolve together.
 type RecentResponse = {
   reviewId: string
   reviewerName: string
@@ -27,21 +28,19 @@ type DashboardData = {
   recentResponses: RecentResponse[]
 }
 
-// Compact relative-time formatter. Built for "minutes-to-weeks" recency —
-// older items fall back to a short month/day. Uses local time; the postedAt
-// timestamp is UTC, JS handles the offset.
-function timeAgo(iso: string | null): string {
+function timeAgo(iso: string | null, t: Translation, lang: 'en' | 'es'): string {
   if (!iso) return ''
   const ms = Date.now() - new Date(iso).getTime()
-  if (ms < 60_000) return 'Just now'
+  if (ms < 60_000) return t.timeJustNow
   const minutes = Math.floor(ms / 60_000)
-  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 60) return t.timeMinutesAgo(minutes)
   const hours = Math.floor(ms / 3_600_000)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return t.timeHoursAgo(hours)
   const days = Math.floor(ms / 86_400_000)
-  if (days === 1) return 'Yesterday'
-  if (days < 7) return `${days} days ago`
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  if (days === 1) return t.timeYesterday
+  if (days < 7) return t.timeDaysAgo(days)
+  const locale = lang === 'es' ? 'es-US' : 'en-US'
+  return new Date(iso).toLocaleDateString(locale, { month: 'short', day: 'numeric' })
 }
 
 function StarRating({ count }: { count: number }) {
@@ -55,16 +54,13 @@ function StarRating({ count }: { count: number }) {
 
 export default function DashboardPage() {
   const router = useRouter()
+  const { t, lang } = useTranslation()
 
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  // Auto-post toggle — driven by data.autoPostEnabled once loaded; flipped
-  // optimistically on click and reconciled with the server's response.
   const [toggling, setToggling] = useState(false)
-
-  // Stagger-in animation state, identical to the previous mock implementation.
   const [prefersReduced, setPrefersReduced] = useState(false)
   const [visibleCards, setVisibleCards] = useState<Set<number>>(new Set())
 
@@ -73,10 +69,6 @@ export default function DashboardPage() {
     setPrefersReduced(reduced)
   }, [])
 
-  // Initial load. Middleware redirects unauthenticated users at /dashboard
-  // to /onboarding before we mount, so a 401 here means the cookie is set
-  // but the user was deleted server-side — rare but possible. We mirror the
-  // middleware redirect so the user lands somewhere sensible.
   useEffect(() => {
     let cancelled = false
 
@@ -92,7 +84,7 @@ export default function DashboardPage() {
         if (!res.ok) {
           const body = await res.text().catch(() => '')
           console.error(`GET /api/dashboard/load failed: HTTP ${res.status}`, body)
-          setLoadError("We couldn't load your dashboard. Try refreshing.")
+          setLoadError(t.dashLoadError)
           return
         }
 
@@ -102,7 +94,7 @@ export default function DashboardPage() {
       } catch (err) {
         if (cancelled) return
         console.error('GET /api/dashboard/load threw:', err)
-        setLoadError('Network error — check your connection and try again.')
+        setLoadError(t.dashNetworkError)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -110,9 +102,8 @@ export default function DashboardPage() {
 
     load()
     return () => { cancelled = true }
-  }, [router])
+  }, [router, t.dashLoadError, t.dashNetworkError])
 
-  // Stagger-in only after data is loaded, matched to actual card count.
   useEffect(() => {
     if (!data || prefersReduced) return
     setVisibleCards(new Set())
@@ -126,9 +117,6 @@ export default function DashboardPage() {
 
   async function handleToggleAutoPost() {
     if (toggling || !data) return
-
-    // Optimistic flip — rollback on failure so the pill always reflects
-    // the server's actual state.
     const previous = data.autoPostEnabled
     setData({ ...data, autoPostEnabled: !previous })
     setToggling(true)
@@ -151,22 +139,23 @@ export default function DashboardPage() {
     }
   }
 
-  // ── Render ────────────────────────────────────────────────────────────
-
   if (loading) {
     return (
       <main className={styles.page}>
         <header className={styles.pageHeader}>
           <LogoFull className={styles.logoImg} />
-          <Link href="/settings" className={styles.settingsLink}>Settings</Link>
+          <div className={styles.headerRight}>
+            <LanguageToggle />
+            <Link href="/settings" className={styles.settingsLink}>{t.dashSettingsLink}</Link>
+          </div>
         </header>
         <section className={styles.statusHero} aria-label="Loading">
           <div className={styles.skeletonStatusRow} aria-hidden="true" />
           <div className={styles.skeletonHeadline} aria-hidden="true" />
           <div className={styles.skeletonSub} aria-hidden="true" />
         </section>
-        <section className={styles.feed} aria-label="Loading recent responses">
-          <div className={styles.feedLabel} aria-hidden="true">Recent responses</div>
+        <section className={styles.feed} aria-label={t.dashRecentResponses}>
+          <div className={styles.feedLabel} aria-hidden="true">{t.dashRecentResponses}</div>
           {[0, 1, 2].map(i => (
             <div key={i} className={styles.skeletonCard} aria-hidden="true">
               <div className={styles.skeletonLine} style={{ width: '40%' }} />
@@ -184,10 +173,13 @@ export default function DashboardPage() {
       <main className={styles.page}>
         <header className={styles.pageHeader}>
           <LogoFull className={styles.logoImg} />
-          <Link href="/settings" className={styles.settingsLink}>Settings</Link>
+          <div className={styles.headerRight}>
+            <LanguageToggle />
+            <Link href="/settings" className={styles.settingsLink}>{t.dashSettingsLink}</Link>
+          </div>
         </header>
         <section className={styles.statusHero}>
-          <p className={styles.weeklyCount}>{loadError ?? 'No data'}</p>
+          <p className={styles.weeklyCount}>{loadError ?? ''}</p>
         </section>
       </main>
     )
@@ -200,7 +192,10 @@ export default function DashboardPage() {
       {/* Nav */}
       <header className={styles.pageHeader}>
         <LogoFull className={styles.logoImg} />
-        <Link href="/settings" className={styles.settingsLink}>Settings</Link>
+        <div className={styles.headerRight}>
+          <LanguageToggle />
+          <Link href="/settings" className={styles.settingsLink}>{t.dashSettingsLink}</Link>
+        </div>
       </header>
 
       {/* Status hero */}
@@ -215,29 +210,27 @@ export default function DashboardPage() {
             className={styles.statusDotLabel}
             style={{ color: active ? 'var(--success)' : 'var(--error)' }}
           >
-            {active ? 'All systems running' : 'Auto-replies paused'}
+            {active ? t.dashStatusOn : t.dashStatusPaused}
           </span>
         </div>
 
         <h1 className={styles.headline}>
-          {active ? 'Your reviews are handled.' : 'Your reviews are waiting.'}
+          {active ? t.dashHeadlineOn : t.dashHeadlinePaused}
         </h1>
 
         <p className={styles.weeklyCount}>
-          {data.weeklyPostedCount} {data.weeklyPostedCount === 1 ? 'response' : 'responses'} sent this week
+          {t.dashWeeklySent(data.weeklyPostedCount)}
           <span className={styles.middot}>·</span>
-          <Link href="/history" aria-label="View response history">see full history →</Link>
+          <Link href="/history" aria-label="View response history">{t.dashSeeHistory}</Link>
         </p>
       </section>
 
       {/* Activity feed */}
-      <section className={styles.feed} aria-label="Recent responses">
-        <div className={styles.feedLabel} aria-hidden="true">Recent responses</div>
+      <section className={styles.feed} aria-label={t.dashRecentResponses}>
+        <div className={styles.feedLabel} aria-hidden="true">{t.dashRecentResponses}</div>
 
         {data.recentResponses.length === 0 ? (
-          <p className={styles.emptyFeed}>
-            No responses yet. New reviews will appear here within 15 minutes of being posted.
-          </p>
+          <p className={styles.emptyFeed}>{t.dashEmptyFeed}</p>
         ) : data.recentResponses.map((r, i) => (
           <article
             key={r.reviewId}
@@ -245,7 +238,7 @@ export default function DashboardPage() {
           >
             <div className={styles.cardHeader}>
               <div>
-                <span className={styles.cardReviewer}>{r.reviewerName || 'Anonymous'}</span>
+                <span className={styles.cardReviewer}>{r.reviewerName || t.dashAnonymous}</span>
                 {data.locationName && (
                   <span className={styles.cardLocation}>{data.locationName}</span>
                 )}
@@ -253,12 +246,12 @@ export default function DashboardPage() {
               <div className={styles.cardMeta}>
                 <StarRating count={r.rating} />
                 <time className={styles.cardTime} dateTime={r.postedAt ?? ''}>
-                  {timeAgo(r.postedAt)}
+                  {timeAgo(r.postedAt, t, lang)}
                 </time>
               </div>
             </div>
             <p className={styles.cardReviewText}>{r.reviewText}</p>
-            <EditableResponse response={r.responseText} tagLabel="Response sent" />
+            <EditableResponse response={r.responseText} tagLabel={t.editableResponseSent} />
           </article>
         ))}
       </section>
@@ -269,12 +262,12 @@ export default function DashboardPage() {
           className={styles.repliesBtn}
           data-active={active ? 'true' : 'false'}
           aria-pressed={active}
-          aria-label={active ? 'Auto-replies are on. Click to pause.' : 'Auto-replies are paused. Click to resume.'}
+          aria-label={active ? t.dashAutoRepliesAriaOn : t.dashAutoRepliesAriaPaused}
           onClick={handleToggleAutoPost}
           disabled={toggling}
         >
           <span className={styles.repliesBtnDot} aria-hidden="true" />
-          <span>{active ? 'Auto-replies ON' : 'Auto-replies PAUSED'}</span>
+          <span>{active ? t.dashAutoRepliesOn : t.dashAutoRepliesPaused}</span>
         </button>
       </footer>
     </main>

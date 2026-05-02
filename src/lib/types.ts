@@ -13,6 +13,9 @@ export type BrandVoice = {
   avoid: string                 // e.g. "never say 'we take your feedback seriously'"
   signature_phrases: string[]   // e.g. ["see you soon!", "come back and see us"]
   language: string              // primary language, e.g. "en" | "es" | "fr"
+  // When true, the auto-post pipeline detects the review's language and
+  // responds in that language. When false, all responses use `language`.
+  auto_detect_language: boolean
   owner_description: string | null  // free-text from onboarding
 }
 

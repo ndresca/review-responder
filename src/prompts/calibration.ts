@@ -2,6 +2,22 @@ import { randomUUID } from 'crypto'
 import { sanitizeForPrompt } from '@/lib/sanitize'
 import type { BrandVoice, ExistingResponse, ScenarioType } from '@/lib/types'
 
+// Maps the brand_voices.language code to the human-readable name we
+// inject into the prompt. Keys mirror the <select> options in onboarding
+// step 2 / settings. Anything outside the map falls through as the raw
+// code, which the LLM tolerates (e.g. "en-GB" → "en-GB").
+const LANGUAGE_NAMES: Record<string, string> = {
+  en: 'English',
+  es: 'Spanish',
+  fr: 'French',
+  pt: 'Portuguese',
+  it: 'Italian',
+  de: 'German',
+  ja: 'Japanese',
+  zh: 'Mandarin Chinese',
+  ar: 'Arabic',
+}
+
 // What each scenario type represents — used to guide sample review generation
 const SCENARIO_DESCRIPTIONS: Record<ScenarioType, string> = {
   '5star':            'an enthusiastic 5-star review with specific praise',
@@ -92,10 +108,18 @@ export function buildCalibrationPrompt(
   ownerFeedback?: string,
 ): string {
   const scenarioDescription = SCENARIO_DESCRIPTIONS[scenario]
-  const isMultilingual = scenario === 'multilingual'
-  const languageNote = isMultilingual
-    ? `The review should be written in ${brandVoice.language}. The response should also be in ${brandVoice.language}.`
-    : 'Both the review and the response should be in English.'
+  // The owner's primary language drives EVERY calibration example, including
+  // the multilingual scenario (which already lives in brandVoice.language).
+  // Auto-detect-language only applies at production-response time, not here:
+  // calibration is the gold-standard few-shot pool for the owner's voice in
+  // their language, so generating examples in the wrong language would
+  // train the AI on the wrong dialect.
+  const languageName = LANGUAGE_NAMES[brandVoice.language] ?? brandVoice.language
+  const languageInstruction =
+    `Generate all example responses in ${languageName}. ` +
+    `Use natural, fluent ${languageName} appropriate for a restaurant ` +
+    `replying to a customer review. The sample review you write should ` +
+    `also be in ${languageName} so the calibration is end-to-end consistent.`
 
   return `You are helping calibrate an AI system that automatically responds to Google reviews on behalf of a restaurant owner.
 
@@ -103,7 +127,7 @@ Your task has two parts:
 1. Write a realistic sample Google review matching this scenario: ${scenarioDescription}.
 2. Write the owner's response to that review, perfectly matching their voice and style.
 
-${languageNote}
+${languageInstruction}
 
 RESTAURANT VOICE
 ────────────────

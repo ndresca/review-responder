@@ -350,7 +350,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   // Load brand voice
   const { data: bvRow, error: bvErr } = await supabase
     .from('brand_voices')
-    .select('personality, avoid, signature_phrases, language, owner_description')
+    .select('personality, avoid, signature_phrases, language, auto_detect_language, owner_description')
     .eq('location_id', locationId)
     .single()
 
@@ -361,6 +361,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     avoid: bvRow.avoid as string,
     signature_phrases: bvRow.signature_phrases as string[],
     language: bvRow.language as string,
+    auto_detect_language: (bvRow.auto_detect_language as boolean | null) ?? false,
     owner_description: bvRow.owner_description as string | null,
   }
 
@@ -638,7 +639,7 @@ async function regenerateExample(
   // Load brand voice
   const { data: bvRow, error: bvErr } = await supabase
     .from('brand_voices')
-    .select('personality, avoid, signature_phrases, language, owner_description')
+    .select('personality, avoid, signature_phrases, language, auto_detect_language, owner_description')
     .eq('location_id', locationId)
     .single()
 
@@ -649,6 +650,7 @@ async function regenerateExample(
     avoid: bvRow.avoid as string,
     signature_phrases: bvRow.signature_phrases as string[],
     language: bvRow.language as string,
+    auto_detect_language: (bvRow.auto_detect_language as boolean | null) ?? false,
     owner_description: bvRow.owner_description as string | null,
   }
 

@@ -16,6 +16,9 @@ type SaveBody = {
   personality?: string
   avoid?: string
   language?: string
+  // When true, the auto-post pipeline detects the review's language and
+  // responds in that language. When false, all responses use `language`.
+  autoDetectLanguage?: boolean
   frequency?: 'daily' | 'weekly'
   digestDay?: number | null
   digestTime?: number
@@ -63,7 +66,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const lengthError = validateLengths(body)
   if (lengthError) return lengthError
 
-  const { locationId, personality, avoid, language,
+  const { locationId, personality, avoid, language, autoDetectLanguage,
           frequency, digestDay, digestTime, timezone } = body
 
   if (!locationId) return NextResponse.json({ error: 'locationId is required' }, { status: 400 })
@@ -87,6 +90,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (typeof personality === 'string') bvUpdate.personality = personality
   if (typeof avoid === 'string') bvUpdate.avoid = avoid
   if (typeof language === 'string') bvUpdate.language = language
+  if (typeof autoDetectLanguage === 'boolean') bvUpdate.auto_detect_language = autoDetectLanguage
 
   if (Object.keys(bvUpdate).length > 0) {
     const { error: bvErr } = await supabase

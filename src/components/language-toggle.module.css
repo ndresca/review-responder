@@ -1,0 +1,27 @@
+/* Subtle text-only language toggle. Matches the existing nav-link aesthetic:
+   Instrument Sans, warm near-black #1C1410, no border, no background. */
+.toggle {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text);
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+
+@media (hover: hover) {
+  .toggle:hover {
+    opacity: 0.7;
+  }
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}

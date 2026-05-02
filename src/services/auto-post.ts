@@ -73,7 +73,7 @@ async function getOAuthTokens(locationId: string): Promise<OAuthTokenRow> {
 async function getBrandVoice(locationId: string): Promise<BrandVoiceRow> {
   const { data, error } = await getSupabase()
     .from('brand_voices')
-    .select('personality, avoid, signature_phrases, language, owner_description, auto_post_enabled')
+    .select('personality, avoid, signature_phrases, language, auto_detect_language, owner_description, auto_post_enabled')
     .eq('location_id', locationId)
     .single()
 

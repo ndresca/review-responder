@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { LanguageToggle } from '@/components/LanguageToggle'
+import { useTranslation } from '@/lib/i18n-client'
 import styles from './settings.module.css'
 
 const HOURS = [
@@ -31,6 +33,7 @@ const EMPTY_DEFAULTS = {
   personality: '',
   avoid: '',
   language: 'en',
+  autoDetectLanguage: false,
   daily: true,
   weekly: false,
   lowAlert: false,
@@ -45,6 +48,7 @@ type LoadResponse = {
     personality: string
     avoid: string
     language: string
+    autoDetectLanguage: boolean
     ownerDescription: string | null
   } | null
   notifications: {
@@ -88,6 +92,7 @@ function Toggle({
 function SettingsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { t } = useTranslation()
   // URL param is a fallback; the load endpoint is authoritative for which
   // location this owner edits. The param exists so direct links to
   // /settings?locationId=... still work for QA.
@@ -100,6 +105,7 @@ function SettingsContent() {
   const [personality, setPersonality] = useState(EMPTY_DEFAULTS.personality)
   const [avoid, setAvoid] = useState(EMPTY_DEFAULTS.avoid)
   const [language, setLanguage] = useState(EMPTY_DEFAULTS.language)
+  const [autoDetectLanguage, setAutoDetectLanguage] = useState(EMPTY_DEFAULTS.autoDetectLanguage)
   const [daily, setDaily] = useState(EMPTY_DEFAULTS.daily)
   const [weekly, setWeekly] = useState(EMPTY_DEFAULTS.weekly)
   const [lowAlert, setLowAlert] = useState(EMPTY_DEFAULTS.lowAlert)
@@ -159,7 +165,7 @@ function SettingsContent() {
         if (!res.ok) {
           const body = await res.text().catch(() => '')
           console.error(`GET /api/settings/load failed: HTTP ${res.status}`, body)
-          setLoadError(res.status === 401 ? 'Sign in again to load your settings.' : 'Couldn\'t load your settings.')
+          setLoadError(t.setLoadError)
           return
         }
 
@@ -181,6 +187,7 @@ function SettingsContent() {
           next.personality = data.brandVoice.personality ?? ''
           next.avoid = data.brandVoice.avoid ?? ''
           next.language = data.brandVoice.language ?? 'en'
+          next.autoDetectLanguage = data.brandVoice.autoDetectLanguage ?? false
         }
 
         if (data.notifications) {
@@ -197,6 +204,7 @@ function SettingsContent() {
         setPersonality(next.personality)
         setAvoid(next.avoid)
         setLanguage(next.language)
+        setAutoDetectLanguage(next.autoDetectLanguage)
         setDaily(next.daily)
         setWeekly(next.weekly)
         setHourIdx(next.hourIdx)
@@ -208,7 +216,7 @@ function SettingsContent() {
       } catch (err) {
         if (cancelled) return
         console.error('GET /api/settings/load threw:', err)
-        setLoadError('Network error — check your connection.')
+        setLoadError(t.setLoadError)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -226,12 +234,13 @@ function SettingsContent() {
       personality !== s.personality ||
       avoid !== s.avoid ||
       language !== s.language ||
+      autoDetectLanguage !== s.autoDetectLanguage ||
       daily !== s.daily ||
       weekly !== s.weekly ||
       lowAlert !== s.lowAlert ||
       hourIdx !== s.hourIdx
     )
-  }, [restaurantName, personality, avoid, language, daily, weekly, lowAlert, hourIdx])
+  }, [restaurantName, personality, avoid, language, autoDetectLanguage, daily, weekly, lowAlert, hourIdx])
 
   function handleDaily(on: boolean) {
     setDaily(on)
@@ -248,7 +257,7 @@ function SettingsContent() {
     setSaveError(null)
 
     if (!locationId) {
-      setSaveError('Missing location — open settings via the dashboard so we know which restaurant to save.')
+      setSaveError(t.setLoadError)
       return
     }
 
@@ -266,6 +275,7 @@ function SettingsContent() {
           personality,
           avoid,
           language,
+          autoDetectLanguage,
           frequency,
           digestDay: frequency === 'weekly' ? 1 : null, // Monday default; surface a day picker in a follow-up
           digestTime: hourIdxToTime(hourIdx),
@@ -276,13 +286,13 @@ function SettingsContent() {
       if (!res.ok) {
         const body = await res.text().catch(() => '')
         console.error(`POST /api/settings/save failed: HTTP ${res.status}`, body)
-        setSaveError(res.status === 401 ? 'Sign in again to save changes.' : 'Couldn\'t save. Try again.')
+        setSaveError(t.setLoadError)
         return
       }
 
       // Snapshot current values as the new saved baseline so isDirty() flips false.
       savedRef.current = {
-        restaurantName, personality, avoid, language,
+        restaurantName, personality, avoid, language, autoDetectLanguage,
         daily, weekly, lowAlert, hourIdx,
       }
       setSavedVersion(v => v + 1)
@@ -298,7 +308,7 @@ function SettingsContent() {
       }, 1000)
     } catch (err) {
       console.error('POST /api/settings/save threw:', err)
-      setSaveError('Network error — check your connection and try again.')
+      setSaveError(t.dashNetworkError)
     } finally {
       setSaving(false)
     }
@@ -429,7 +439,7 @@ function SettingsContent() {
         aria-hidden={paused ? undefined : 'true'}
       >
         <div className={styles.pausedBanner}>
-          Auto-posting is paused. Reviews are not being responded to.
+          {t.setPausedBanner}
         </div>
       </div>
 
@@ -438,35 +448,36 @@ function SettingsContent() {
         <a
           href="/dashboard"
           className={styles.backLink}
-          aria-label="Back to Dashboard"
+          aria-label={t.setBackToDashboard}
           onClick={handleBackClick}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" width="14" height="14" strokeWidth="2">
             <polyline points="15 18 9 12 15 6" />
           </svg>
-          Dashboard
+          {t.setBackToDashboard}
         </a>
+        <LanguageToggle />
       </nav>
 
       {/* Unsaved changes dialog */}
       {showUnsavedDialog && (
         <div className={styles.dialogOverlay} onClick={() => setShowUnsavedDialog(false)}>
           <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
-            <p className={styles.dialogText}>You have unsaved changes. Save before leaving?</p>
+            <p className={styles.dialogText}>{t.setUnsavedDialog}</p>
             <div className={styles.dialogActions}>
-              <button className={styles.btnDialogPrimary} onClick={handleUnsavedSave}>Save</button>
-              <button className={styles.btnDialogSecondary} onClick={handleUnsavedDiscard}>Discard</button>
+              <button className={styles.btnDialogPrimary} onClick={handleUnsavedSave}>{t.setUnsavedSave}</button>
+              <button className={styles.btnDialogSecondary} onClick={handleUnsavedDiscard}>{t.setUnsavedDiscard}</button>
             </div>
           </div>
         </div>
       )}
 
-      <h1 className={styles.pageTitle}>Settings</h1>
+      <h1 className={styles.pageTitle}>{t.setPageTitle}</h1>
 
       {loading && (
         <div className={styles.settingsLoading} role="status" aria-live="polite">
           <span className={styles.settingsSpinner} aria-hidden="true" />
-          <span className={styles.settingsLoadingText}>Loading your settings...</span>
+          <span className={styles.settingsLoadingText}>{t.setLoadingText}</span>
         </div>
       )}
 
@@ -477,11 +488,11 @@ function SettingsContent() {
       {!loading && (
         <>
       {/* Section 1: Your location */}
-      <section className={`${styles.settingsSection} ${styles.firstSection}`} aria-label="Your location">
-        <h2 className={styles.sectionLabel}>Your location</h2>
+      <section className={`${styles.settingsSection} ${styles.firstSection}`} aria-label={t.setSectionLocation}>
+        <h2 className={styles.sectionLabel}>{t.setSectionLocation}</h2>
 
         <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="restaurant-name">Restaurant name</label>
+          <label className={styles.fieldLabel} htmlFor="restaurant-name">{t.setRestaurantNameLabel}</label>
           <input
             type="text"
             id="restaurant-name"
@@ -494,16 +505,16 @@ function SettingsContent() {
         </div>
 
         <div className={styles.field}>
-          <label className={styles.fieldLabel}>Google Business Profile</label>
+          <label className={styles.fieldLabel}>{t.setGbpLabel}</label>
           <div className={styles.gbpStatus}>
             {gbpDisconnected ? (
               <span className={styles.statusPillDisconnected}>
-                Disconnected
+                {t.setGbpDisconnected}
               </span>
             ) : (
               <span className={styles.statusPill}>
                 <span className={styles.statusDot} aria-hidden="true" />
-                Connected
+                {t.setGbpConnected}
               </span>
             )}
             {userEmail && <span className={styles.statusEmail}>{userEmail}</span>}
@@ -512,27 +523,28 @@ function SettingsContent() {
                 className={styles.disconnectLink}
                 onClick={handleDisconnectGoogle}
                 disabled={gbpDisconnecting}
-                aria-label="Disconnect Google Business Profile"
+                aria-label={t.setGbpDisconnect}
               >
-                {gbpDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+                {gbpDisconnecting ? t.setGbpDisconnecting : t.setGbpDisconnect}
               </button>
             )}
           </div>
           {gbpDisconnected && (
             <p className={styles.disconnectConfirmation}>
-              Google Business Profile disconnected. Auto-posting is now off —{' '}
-              <a href="/api/auth/google" className={styles.reconnectLink}>Reconnect</a> to resume.
+              {t.setGbpDisconnectedNotice1}
+              <a href="/api/auth/google" className={styles.reconnectLink}>{t.setGbpReconnect}</a>
+              {t.setGbpDisconnectedNotice2}
             </p>
           )}
         </div>
       </section>
 
       {/* Section 2: Brand voice — fully inline-editable, no modal */}
-      <section className={styles.settingsSection} aria-label="Brand voice">
-        <h2 className={styles.sectionLabel}>Brand voice</h2>
+      <section className={styles.settingsSection} aria-label={t.setSectionVoice}>
+        <h2 className={styles.sectionLabel}>{t.setSectionVoice}</h2>
 
         <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="personality">Personality</label>
+          <label className={styles.fieldLabel} htmlFor="personality">{t.setPersonalityLabel}</label>
           <input
             type="text"
             id="personality"
@@ -544,7 +556,7 @@ function SettingsContent() {
         </div>
 
         <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="avoid">Phrases to avoid</label>
+          <label className={styles.fieldLabel} htmlFor="avoid">{t.setAvoidLabel}</label>
           <input
             type="text"
             id="avoid"
@@ -556,60 +568,69 @@ function SettingsContent() {
         </div>
 
         <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="language">Primary language</label>
+          <label className={styles.fieldLabel} htmlFor="language">{t.setLanguageLabel}</label>
           <select
             id="language"
             className={styles.selectInput}
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
           >
-            <option value="en">English</option>
-            <option value="es">Spanish</option>
-            <option value="fr">French</option>
-            <option value="pt">Portuguese</option>
-            <option value="it">Italian</option>
-            <option value="de">German</option>
-            <option value="ja">Japanese</option>
-            <option value="zh">Mandarin</option>
-            <option value="ar">Arabic</option>
+            <option value="en">{t.languageEnglish}</option>
+            <option value="es">{t.languageSpanish}</option>
+            <option value="fr">{t.languageFrench}</option>
+            <option value="pt">{t.languagePortuguese}</option>
+            <option value="it">{t.languageItalian}</option>
+            <option value="de">{t.languageGerman}</option>
+            <option value="ja">{t.languageJapanese}</option>
+            <option value="zh">{t.languageMandarin}</option>
+            <option value="ar">{t.languageArabic}</option>
           </select>
+        </div>
+
+        {/* Per-review auto-detect — same toggle as onboarding step 2. */}
+        <div className={styles.toggleRow}>
+          <div className={styles.toggleInfo}>
+            <span className={styles.toggleLabel}>{t.onbStep2AutoLangLabel}</span>
+            <span className={styles.toggleSub}>{t.onbStep2AutoLangSub}</span>
+          </div>
+          <Toggle id="toggle-autolang" checked={autoDetectLanguage} onChange={setAutoDetectLanguage} label={t.onbStep2AutoLangAria} />
         </div>
       </section>
 
       {/* Section 3: Notifications */}
-      <section className={styles.settingsSection} aria-label="Notifications">
-        <h2 className={styles.sectionLabel}>Notifications</h2>
+      <section className={styles.settingsSection} aria-label={t.setSectionNotifications}>
+        <h2 className={styles.sectionLabel}>{t.setSectionNotifications}</h2>
 
         <div className={styles.toggleRow}>
           <div className={styles.toggleInfo}>
-            <span className={styles.toggleLabel}>Daily digest</span>
-            <span className={styles.toggleSub}>Sent every morning at {digestTime}.</span>
+            <span className={styles.toggleLabel}>{t.setDailyDigest}</span>
+            <span className={styles.toggleSub}>{t.setDailyDigestSub(digestTime)}</span>
           </div>
-          <Toggle id="toggle-daily" checked={daily} onChange={handleDaily} label="Daily digest" />
+          <Toggle id="toggle-daily" checked={daily} onChange={handleDaily} label={t.setDailyDigest} />
         </div>
 
         <div className={styles.toggleRow}>
           <div className={styles.toggleInfo}>
-            <span className={styles.toggleLabel}>Weekly digest</span>
-            <span className={styles.toggleSub}>Sent every Monday morning at {digestTime}.</span>
+            <span className={styles.toggleLabel}>{t.setWeeklyDigest}</span>
+            <span className={styles.toggleSub}>{t.setWeeklyDigestSub(digestTime)}</span>
           </div>
-          <Toggle id="toggle-weekly" checked={weekly} onChange={handleWeekly} label="Weekly digest" />
+          <Toggle id="toggle-weekly" checked={weekly} onChange={handleWeekly} label={t.setWeeklyDigest} />
         </div>
 
         <div className={`${styles.toggleRow} ${styles.toggleRowLast}`}>
           <div className={styles.toggleInfo}>
-            <span className={styles.toggleLabel}>Instant alert for low ratings</span>
-            <span className={styles.toggleSub}>Notified immediately for reviews under 3 stars</span>
+            <span className={styles.toggleLabel}>{t.setInstantAlert}</span>
+            <span className={styles.toggleSub}>{t.setInstantAlertSub}</span>
           </div>
-          <Toggle id="toggle-low" checked={lowAlert} onChange={setLowAlert} label="Instant alert for low ratings" />
+          <Toggle id="toggle-low" checked={lowAlert} onChange={setLowAlert} label={t.setInstantAlert} />
         </div>
 
         <div className={styles.timeField}>
-          <label id="time-label" className={styles.fieldLabel}>Send at</label>
+          <label id="time-label" className={styles.fieldLabel}>{t.setSendAt}</label>
           <div className={styles.hourPicker} role="group" aria-labelledby="time-label">
             <button
               className={styles.hourBtn}
-              aria-label="Earlier"
+              aria-label={t.earlierAria}
               onClick={() => setHourIdx(Math.max(0, hourIdx - 1))}
             >
               −
@@ -619,7 +640,7 @@ function SettingsContent() {
             </div>
             <button
               className={styles.hourBtn}
-              aria-label="Later"
+              aria-label={t.laterAria}
               onClick={() => setHourIdx(Math.min(HOURS.length - 1, hourIdx + 1))}
             >
               +
@@ -629,14 +650,14 @@ function SettingsContent() {
       </section>
 
       {/* Section 4: Danger zone */}
-      <section className={styles.settingsSection} aria-label="Danger zone">
-        <h2 className={styles.dangerLabel}>Danger zone</h2>
+      <section className={styles.settingsSection} aria-label={t.setSectionDanger}>
+        <h2 className={styles.dangerLabel}>{t.setSectionDanger}</h2>
 
         <div className={styles.dangerRow}>
           <div className={styles.dangerInfo}>
-            <span className={styles.dangerActionLabel}>{paused ? 'Resume auto-posting' : 'Pause auto-posting'}</span>
+            <span className={styles.dangerActionLabel}>{paused ? t.setResumeAutoPosting : t.setPauseAutoPosting}</span>
             <span className={styles.dangerSub}>
-              {paused ? 'Auto-posting is currently paused.' : 'Responses will stop until you resume.'}
+              {paused ? t.setPausedSub : t.setRunningSub}
             </span>
           </div>
           {/* Muted text link — same .cancelSubLink class the other danger-zone
@@ -647,41 +668,36 @@ function SettingsContent() {
               flip was in flight. The "..." text is the only in-flight signal. */}
           <button
             className={styles.cancelSubLink}
-            aria-label={paused ? 'Resume auto-posting' : 'Pause auto-posting'}
+            aria-label={paused ? t.setResumeAutoPosting : t.setPauseAutoPosting}
             onClick={handleToggleAutoPost}
           >
-            {pauseToggling ? '...' : (paused ? 'Resume auto-posting' : 'Pause auto-posting')}
+            {pauseToggling ? '...' : (paused ? t.setResumeAutoPosting : t.setPauseAutoPosting)}
           </button>
         </div>
 
         <div className={styles.dangerRow}>
           <div className={styles.dangerInfo}>
-            <span className={styles.dangerActionLabel}>Cancel subscription</span>
+            <span className={styles.dangerActionLabel}>{t.setCancelSubscription}</span>
             <span className={styles.dangerSub}>
-              {subCanceled
-                ? 'Your subscription has been canceled. You\'ll retain access until the end of your billing period.'
-                : 'Your access continues until the end of your billing period.'}
+              {subCanceled ? t.setSubCanceledNotice : t.setSubAccessContinues}
             </span>
           </div>
           {subCanceled ? (
-            <span className={styles.canceledBadge} aria-label="Subscription canceled">Canceled</span>
+            <span className={styles.canceledBadge} aria-label={t.setSubCanceledBadge}>{t.setSubCanceledBadge}</span>
           ) : (
             <button className={styles.cancelSubLink} onClick={() => setShowCancelSub(true)}>
-              Cancel subscription
+              {t.setCancelSubscription}
             </button>
           )}
         </div>
 
         <div className={`${styles.dangerRow} ${styles.dangerRowLast}`}>
           <div className={styles.dangerInfo}>
-            <span className={styles.dangerActionLabel}>Delete account</span>
-            <span className={styles.dangerSub}>This permanently removes your account and all data.</span>
+            <span className={styles.dangerActionLabel}>{t.setDeleteAccount}</span>
+            <span className={styles.dangerSub}>{t.setDeleteSub}</span>
           </div>
-          {/* Visually de-emphasised — the delete affordance shouldn't be more
-              prominent than cancel-subscription. The actual destructive
-              action lives behind the confirmation dialog (.btnDanger). */}
-          <button className={styles.cancelSubLink} onClick={() => setShowDeleteConfirm(true)} aria-label="Delete account">
-            Delete account
+          <button className={styles.cancelSubLink} onClick={() => setShowDeleteConfirm(true)} aria-label={t.setDeleteAccount}>
+            {t.setDeleteAccount}
           </button>
         </div>
       </section>
@@ -699,7 +715,7 @@ function SettingsContent() {
             onClick={handleSave}
             disabled={saving || savedFlash}
           >
-            {savedFlash ? 'Saved ✓' : saving ? 'Saving...' : 'Save changes'}
+            {savedFlash ? t.setSaveSuccess : saving ? t.setSaving : t.setSaveChanges}
           </button>
         </div>
       )}
@@ -709,49 +725,44 @@ function SettingsContent() {
       {showCancelSub && (
         <div className={styles.dialogOverlay} onClick={() => setShowCancelSub(false)}>
           <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
-            <p className={styles.dialogText}>
-              Your subscription will be canceled. You&apos;ll retain access until the end of your billing period.
-            </p>
+            <p className={styles.dialogText}>{t.setSubCancelDialog}</p>
             <div className={styles.dialogActions}>
               <button
                 className={styles.btnDialogPrimary}
                 onClick={() => setShowCancelSub(false)}
               >
-                Keep subscription
+                {t.setSubKeep}
               </button>
               <button
                 className={styles.btnDialogSecondary}
                 onClick={handleCancelSubscription}
                 disabled={cancelingSubInFlight}
               >
-                {cancelingSubInFlight ? 'Canceling...' : 'Confirm cancellation'}
+                {cancelingSubInFlight ? t.setSubCanceling : t.setSubConfirmCancel}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete account dialog. Destructive confirm uses .btnDanger; the
-          dismiss button is visually dominant per spec. */}
+      {/* Delete account dialog. */}
       {showDeleteConfirm && (
         <div className={styles.dialogOverlay} onClick={() => setShowDeleteConfirm(false)}>
           <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
-            <p className={styles.dialogText}>
-              This will permanently delete your account and all data. This cannot be undone.
-            </p>
+            <p className={styles.dialogText}>{t.setDeleteDialog}</p>
             <div className={styles.dialogActions}>
               <button
                 className={styles.btnDialogPrimary}
                 onClick={() => setShowDeleteConfirm(false)}
               >
-                Cancel
+                {t.setDeleteCancel}
               </button>
               <button
                 className={styles.btnDanger}
                 onClick={handleDeleteAccount}
                 disabled={deleting}
               >
-                {deleting ? 'Deleting...' : 'Delete my account'}
+                {deleting ? t.setDeleting : t.setDeleteConfirm}
               </button>
             </div>
           </div>

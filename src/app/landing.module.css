@@ -9,6 +9,15 @@
   padding: 32px 0 0;
   display: flex;
   justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.langToggleWrap {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .logoImg {

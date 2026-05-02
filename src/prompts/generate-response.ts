@@ -2,6 +2,20 @@ import { randomUUID } from 'crypto'
 import { sanitizeForPrompt } from '@/lib/sanitize'
 import type { BrandVoice, CalibrationExample, Review } from '@/lib/types'
 
+// Maps the brand_voices.language code to a human-readable name. Mirrors the
+// LANGUAGE_NAMES map in calibration.ts.
+const LANGUAGE_NAMES: Record<string, string> = {
+  en: 'English',
+  es: 'Spanish',
+  fr: 'French',
+  pt: 'Portuguese',
+  it: 'Italian',
+  de: 'German',
+  ja: 'Japanese',
+  zh: 'Mandarin Chinese',
+  ar: 'Arabic',
+}
+
 function formatVoice(bv: BrandVoice): string {
   // Owner-controlled free-text fields are sanitized before interpolation
   // (strips injection-shaped lines like "Ignore previous instructions").
@@ -56,6 +70,17 @@ export function buildGeneratePrompt(
   const openTag = `--UNTRUSTED-CONTENT-${delimiter}--`
   const closeTag = `--END-UNTRUSTED-CONTENT-${delimiter}--`
 
+  // Two language modes:
+  //   auto_detect_language=true  → "match whatever the reviewer wrote in"
+  //   auto_detect_language=false → "always respond in brand_voices.language"
+  // The auto-detect path is the toggle the owner sets in onboarding step 2 /
+  // settings. Names get glossed via LANGUAGE_NAMES so the LLM doesn't have
+  // to infer "es" → Spanish.
+  const ownerLanguageName = LANGUAGE_NAMES[brandVoice.language] ?? brandVoice.language
+  const languageInstruction = brandVoice.auto_detect_language
+    ? `Detect the language of the review and respond in that same language. Use natural, fluent language appropriate for a restaurant owner replying to a customer review. If the review mixes languages, respond in the dominant one.`
+    : `Respond in ${ownerLanguageName}. Use natural, fluent ${ownerLanguageName} appropriate for a restaurant owner replying to a customer review.`
+
   return `You are responding to a Google review on behalf of a restaurant owner. Your response will be posted publicly and immediately. Match the owner's voice exactly.
 
 RESTAURANT VOICE
@@ -78,7 +103,10 @@ RULES
 - Do NOT start the response with "Thank you for your review."
 - Do NOT use "we take your feedback seriously" or any variation.
 - Do NOT use corporate-speak or filler phrases.
-- Respond in ${brandVoice.language}.
+
+LANGUAGE
+─────────
+${languageInstruction}
 
 NEW REVIEW TO RESPOND TO
 ─────────────────────────

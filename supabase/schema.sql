@@ -33,6 +33,12 @@ create table brand_voices (
   avoid                          text not null default '',
   signature_phrases              text[] not null default '{}',
   language                       text not null default 'en',
+  -- When true, generate responses in the language of each incoming review
+  -- (auto-detected by the LLM). When false, every response is written in
+  -- `language`. Defaults to false because it's an opt-in capability that
+  -- needs explicit owner consent — auto-detection occasionally misclassifies
+  -- short or mixed-language reviews.
+  auto_detect_language           bool not null default false,
   owner_description              text,
   calibrated_at                  timestamptz,
   calibration_examples_accepted  int not null default 0,

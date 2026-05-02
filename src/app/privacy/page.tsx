@@ -1,107 +1,86 @@
 import Link from 'next/link'
+import { LanguageToggle } from '@/components/LanguageToggle'
+import { getServerTranslation } from '@/lib/i18n-server'
 import styles from './privacy.module.css'
 
 export const metadata = {
   title: 'Privacy Policy — Autoplier',
 }
 
-export default function PrivacyPage() {
+// Cookie-driven i18n: must run per-request, never prerendered.
+export const dynamic = 'force-dynamic'
+
+export default async function PrivacyPage() {
+  const { t } = await getServerTranslation()
+
   return (
     <main className={styles.page}>
       <header className={styles.header}>
         <Link href="/" className={styles.backLink}>
-          ← Landing
+          {t.privBackToLanding}
         </Link>
+        <LanguageToggle />
       </header>
 
-      <h1 className={styles.title}>Privacy Policy</h1>
-      <p className={styles.effective}>Effective April 2026</p>
+      <h1 className={styles.title}>{t.privTitle}</h1>
+      <p className={styles.effective}>{t.privEffective}</p>
 
-      <p className={styles.intro}>
-        Autoplier is an AI-powered tool that responds to Google reviews on behalf
-        of restaurant owners. This policy explains what data we collect, how we
-        use it, and who we share it with. No legalese — just plain English.
-      </p>
+      <p className={styles.intro}>{t.privIntro}</p>
 
       <section className={styles.section}>
-        <h2 className={styles.heading}>What we collect</h2>
+        <h2 className={styles.heading}>{t.privCollectHeading}</h2>
         <ul className={styles.list}>
           <li>
-            <strong>Google account info</strong> — your name, email address, and
-            profile picture, provided when you sign in with Google.
+            <strong>{t.privCollect1Strong}</strong>{t.privCollect1Body}
           </li>
           <li>
-            <strong>Google Business Profile data</strong> — your business
-            locations and the reviews posted to them. This is how we know which
-            reviews to respond to.
+            <strong>{t.privCollect2Strong}</strong>{t.privCollect2Body}
           </li>
           <li>
-            <strong>Usage data</strong> — basic analytics like page views and
-            feature usage, so we can improve the product. No third-party tracking
-            scripts.
+            <strong>{t.privCollect3Strong}</strong>{t.privCollect3Body}
           </li>
         </ul>
       </section>
 
       <section className={styles.section}>
-        <h2 className={styles.heading}>How we use it</h2>
-        <p className={styles.body}>
-          We use your data for one thing: generating and posting AI responses to
-          your Google reviews, in your voice. Your brand voice settings and
-          calibration examples train the AI to match how you actually talk to
-          customers. We don&apos;t use your data to train AI models, sell to
-          advertisers, or anything else.
-        </p>
+        <h2 className={styles.heading}>{t.privUseHeading}</h2>
+        <p className={styles.body}>{t.privUseBody}</p>
       </section>
 
       <section className={styles.section}>
-        <h2 className={styles.heading}>Data storage</h2>
-        <p className={styles.body}>
-          Your data is stored securely in Supabase (hosted on AWS). OAuth tokens
-          that grant access to your Google account are encrypted at rest using
-          AES-256-GCM. The encryption key is stored separately from the database
-          and is never exposed to client-side code.
-        </p>
+        <h2 className={styles.heading}>{t.privStorageHeading}</h2>
+        <p className={styles.body}>{t.privStorageBody}</p>
       </section>
 
       <section className={styles.section}>
-        <h2 className={styles.heading}>Third parties</h2>
-        <p className={styles.body}>We share data with these services, and only these services:</p>
+        <h2 className={styles.heading}>{t.privThirdHeading}</h2>
+        <p className={styles.body}>{t.privThirdIntro}</p>
         <ul className={styles.list}>
           <li>
-            <strong>Google</strong> — OAuth authentication and Google Business
-            Profile API (to read reviews and post responses).
+            <strong>{t.privThirdGoogleStrong}</strong>{t.privThirdGoogleBody}
           </li>
           <li>
-            <strong>Stripe</strong> — payment processing. We never see or store
-            your full card number.
+            <strong>{t.privThirdStripeStrong}</strong>{t.privThirdStripeBody}
           </li>
           <li>
-            <strong>Anthropic</strong> — AI response generation. Review text and
-            your brand voice settings are sent to generate responses. Anthropic
-            does not use this data for model training.
+            <strong>{t.privThirdAnthropicStrong}</strong>{t.privThirdAnthropicBody}
           </li>
         </ul>
       </section>
 
       <section className={styles.section}>
-        <h2 className={styles.heading}>Data retention</h2>
-        <p className={styles.body}>
-          Your data is retained while your account is active. If you cancel your
-          subscription, your data stays available for 30 days in case you change
-          your mind. After that, or upon request, we permanently delete
-          everything — account info, reviews, responses, OAuth tokens, all of it.
-        </p>
+        <h2 className={styles.heading}>{t.privRetentionHeading}</h2>
+        <p className={styles.body}>{t.privRetentionBody}</p>
       </section>
 
       <section className={styles.section}>
-        <h2 className={styles.heading}>Contact</h2>
+        <h2 className={styles.heading}>{t.privContactHeading}</h2>
         <p className={styles.body}>
-          Questions about your data? Email us at{' '}
+          {t.privContactBefore}
           <a href="mailto:contact@autoplier.com" className={styles.link}>
             contact@autoplier.com
           </a>
-          . We&apos;ll respond within 48 hours.
+          {t.privContactAfter}
         </p>
       </section>
 
