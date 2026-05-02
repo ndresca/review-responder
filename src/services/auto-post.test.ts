@@ -11,6 +11,7 @@ const BRAND_VOICE: BrandVoice = {
   avoid: 'we apologise for any inconvenience',
   signature_phrases: ['cheers'],
   language: 'en',
+  auto_detect_language: false,
   owner_description: 'Neighbourhood Italian spot',
 }
 

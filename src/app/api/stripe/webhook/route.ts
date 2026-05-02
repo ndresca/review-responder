@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-03-25.dahlia',
-})
+function buildStripe() {
+  const key = process.env.STRIPE_SECRET_KEY
+  if (!key) throw new Error('STRIPE_SECRET_KEY is required')
+  return new Stripe(key, { apiVersion: '2026-03-25.dahlia' })
+}
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL
@@ -21,6 +23,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Missing stripe-signature header' }, { status: 400 })
   }
 
+  const stripe = buildStripe()
   let event: Stripe.Event
   try {
     event = stripe.webhooks.constructEvent(

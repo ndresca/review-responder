@@ -3,10 +3,13 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { getValidSession } from '@/lib/session'
+import { clearRefreshCookie, revokeAllRefreshTokensForOwner } from '@/lib/session-mint'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-03-25.dahlia',
-})
+function buildStripe() {
+  const key = process.env.STRIPE_SECRET_KEY
+  if (!key) throw new Error('STRIPE_SECRET_KEY is required')
+  return new Stripe(key, { apiVersion: '2026-03-25.dahlia' })
+}
 
 function buildServiceSupabase() {
   const url = process.env.SUPABASE_URL
@@ -51,14 +54,21 @@ export async function DELETE(): Promise<NextResponse> {
       .select('stripe_subscription_id, status')
       .in('location_id', locationIds)
 
-    for (const s of subs ?? []) {
+    const activeSubs = (subs ?? []).filter(s => {
       const subId = s.stripe_subscription_id as string
       const status = s.status as string
-      if (status === 'canceled' || !subId) continue
-      try {
-        await stripe.subscriptions.cancel(subId)
-      } catch (err) {
-        console.warn(`delete-account: stripe.subscriptions.cancel(${subId}) failed (continuing):`, err)
+      return status !== 'canceled' && subId
+    })
+
+    if (activeSubs.length > 0) {
+      const stripe = buildStripe()
+      for (const s of activeSubs) {
+        const subId = s.stripe_subscription_id as string
+        try {
+          await stripe.subscriptions.cancel(subId)
+        } catch (err) {
+          console.warn(`delete-account: stripe.subscriptions.cancel(${subId}) failed (continuing):`, err)
+        }
       }
     }
   }
@@ -103,15 +113,33 @@ export async function DELETE(): Promise<NextResponse> {
     return NextResponse.json({ error: 'Failed to remove account.' }, { status: 500 })
   }
 
-  // 5. Clear the session cookie so the client is logged out on the redirect.
-  const response = NextResponse.json({ success: true })
-  response.cookies.set('autoplier_session', '', {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 0,
-    path: '/',
+  // 5. Revoke every session_tokens row for this owner — defense for the
+  //    case where the user is signed in on multiple devices. A leftover
+  //    refresh cookie on another browser would otherwise still hit the
+  //    refresh endpoint until expiry. Best-effort: failure is logged and
+  //    the deletion still succeeds (the auth.users delete above already
+  //    invalidates them via ON DELETE CASCADE, this is belt-and-braces).
+  await revokeAllRefreshTokensForOwner(ownerId).catch(err => {
+    console.error('delete-account: revokeAllRefreshTokensForOwner failed:', err)
   })
+
+  // 6. Clear the sb-* auth cookies AND the refresh cookie so the current
+  //    browser is logged out on the redirect. The auth user has already
+  //    been deleted, so any cached JWT would fail validation anyway —
+  //    this is a courtesy to keep the browser state clean.
+  const response = NextResponse.json({ success: true })
+  for (const c of cookieStore.getAll()) {
+    if (/^sb-.+-auth-token(\.\d+)?$/.test(c.name)) {
+      response.cookies.set(c.name, '', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 0,
+        path: '/',
+      })
+    }
+  }
+  clearRefreshCookie(response)
 
   return response
 }

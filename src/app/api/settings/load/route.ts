@@ -57,7 +57,7 @@ export async function GET(): Promise<NextResponse> {
   const [bvResult, npResult, subResult] = await Promise.all([
     supabase
       .from('brand_voices')
-      .select('personality, avoid, language, owner_description, auto_post_enabled')
+      .select('personality, avoid, language, auto_detect_language, owner_description, auto_post_enabled')
       .eq('location_id', locationId)
       .maybeSingle(),
     supabase
@@ -84,6 +84,7 @@ export async function GET(): Promise<NextResponse> {
       personality: bvResult.data.personality as string,
       avoid: bvResult.data.avoid as string,
       language: (bvResult.data.language as string) ?? 'en',
+      autoDetectLanguage: (bvResult.data.auto_detect_language as boolean | null) ?? false,
       ownerDescription: (bvResult.data.owner_description as string | null) ?? null,
     } : null,
     notifications: npResult.data ? {

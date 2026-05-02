@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import EditableResponse from '@/components/EditableResponse'
+import { Footer } from '@/components/Footer'
+import { useTranslation } from '@/lib/i18n-client'
+import type { Translation } from '@/lib/i18n'
 import styles from './history.module.css'
 
 // Shape returned by GET /api/history/load.
@@ -24,24 +27,24 @@ type HistoryData = {
   entries: HistoryEntry[]
 }
 
-// Compact relative-time formatter, mirrors the dashboard helper.
-function timeAgo(iso: string | null): string {
+// Compact relative-time formatter, mirrors the dashboard helper. Pulls
+// number-bearing strings from the active dictionary so plural rules and
+// abbreviations vary per language.
+function timeAgo(iso: string | null, t: Translation, lang: 'en' | 'es'): string {
   if (!iso) return ''
   const ms = Date.now() - new Date(iso).getTime()
-  if (ms < 60_000) return 'Just now'
+  if (ms < 60_000) return t.timeJustNow
   const minutes = Math.floor(ms / 60_000)
-  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 60) return t.timeMinutesAgo(minutes)
   const hours = Math.floor(ms / 3_600_000)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return t.timeHoursAgo(hours)
   const days = Math.floor(ms / 86_400_000)
-  if (days === 1) return 'Yesterday'
-  if (days < 7) return `${days} days ago`
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  if (days === 1) return t.timeYesterday
+  if (days < 7) return t.timeDaysAgo(days)
+  const locale = lang === 'es' ? 'es-US' : 'en-US'
+  return new Date(iso).toLocaleDateString(locale, { month: 'short', day: 'numeric' })
 }
 
-// Maps responses_posted.status to the two-state UI label. Anything that's
-// not 'posted' is "needs attention" — covers failed, blocked_pending_regen,
-// and retrying.
 function statusLabel(status: string): 'posted' | 'needs attention' {
   return status === 'posted' ? 'posted' : 'needs attention'
 }
@@ -58,14 +61,12 @@ function StarRating({ count }: { count: number }) {
 
 export default function HistoryPage() {
   const router = useRouter()
+  const { t, lang } = useTranslation()
 
   const [data, setData] = useState<HistoryData | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  // Initial load + 60s polling so the page reflects new responses without
-  // a manual refresh. Same pattern the previous mock implementation used,
-  // now with a real fetch.
   useEffect(() => {
     let cancelled = false
 
@@ -81,7 +82,7 @@ export default function HistoryPage() {
         if (!res.ok) {
           const body = await res.text().catch(() => '')
           console.error(`GET /api/history/load failed: HTTP ${res.status}`, body)
-          if (initial) setLoadError("We couldn't load your review history. Try refreshing.")
+          if (initial) setLoadError(t.histLoadError)
           return
         }
 
@@ -92,7 +93,7 @@ export default function HistoryPage() {
       } catch (err) {
         if (cancelled) return
         console.error('GET /api/history/load threw:', err)
-        if (initial) setLoadError('Network error — check your connection and try again.')
+        if (initial) setLoadError(t.histNetworkError)
       } finally {
         if (!cancelled && initial) setLoading(false)
       }
@@ -104,23 +105,23 @@ export default function HistoryPage() {
       cancelled = true
       clearInterval(interval)
     }
-  }, [router])
+  }, [router, t.histLoadError, t.histNetworkError])
 
   return (
     <main className={styles.page}>
       <header className={styles.header}>
         <Link href="/dashboard" className={styles.backLink}>
-          ← Dashboard
+          {t.histBackToDashboard}
         </Link>
       </header>
 
-      <h1 className={styles.title}>Review history.</h1>
-      <p className={styles.refreshLabel}>Updates every 60 seconds.</p>
+      <h1 className={styles.title}>{t.histTitle}</h1>
+      <p className={styles.refreshLabel}>{t.histRefreshLabel}</p>
 
       {loading && (
         <div className={styles.loadingWrap} role="status" aria-live="polite">
           <span className={styles.spinner} aria-hidden="true" />
-          <span className={styles.loadingText}>Loading your history...</span>
+          <span className={styles.loadingText}>{t.histLoadingText}</span>
         </div>
       )}
 
@@ -129,23 +130,21 @@ export default function HistoryPage() {
       )}
 
       {!loading && !loadError && data && data.entries.length === 0 && (
-        <p className={styles.emptyNotice}>
-          No responses yet. New reviews and replies will appear here within 15 minutes of being posted.
-        </p>
+        <p className={styles.emptyNotice}>{t.histEmpty}</p>
       )}
 
       {!loading && !loadError && data && data.entries.length > 0 && (
         <div className={styles.list}>
           {data.entries.map((entry) => {
             const label = statusLabel(entry.status)
-            const time = timeAgo(entry.postedAt ?? entry.reviewCreatedAt)
+            const time = timeAgo(entry.postedAt ?? entry.reviewCreatedAt, t, lang)
             return (
               <article key={entry.reviewId} className={styles.card}>
                 <div className={styles.cardTop}>
                   <div className={styles.cardIdentity}>
                     <StarRating count={entry.rating} />
                     <div>
-                      <span className={styles.cardReviewer}>{entry.reviewerName || 'Anonymous'}</span>
+                      <span className={styles.cardReviewer}>{entry.reviewerName || t.histAnonymous}</span>
                       {data.locationName && (
                         <span className={styles.cardLocation}>{data.locationName}</span>
                       )}
@@ -157,7 +156,7 @@ export default function HistoryPage() {
                         label === 'posted' ? styles.badgePosted : styles.badgeAttention
                       }`}
                     >
-                      {label === 'posted' ? 'Posted' : 'Needs attention'}
+                      {label === 'posted' ? t.histPosted : t.histNeedsAttention}
                     </span>
                     <time className={styles.cardTime} dateTime={entry.postedAt ?? entry.reviewCreatedAt ?? ''}>
                       {time}
@@ -165,12 +164,13 @@ export default function HistoryPage() {
                   </div>
                 </div>
                 <p className={styles.cardText}>{entry.reviewText}</p>
-                <EditableResponse response={entry.responseText} tagLabel="AI response" />
+                <EditableResponse response={entry.responseText} tagLabel={t.histAiResponse} />
               </article>
             )
           })}
         </div>
       )}
+      <Footer />
     </main>
   )
 }

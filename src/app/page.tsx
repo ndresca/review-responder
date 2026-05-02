@@ -1,8 +1,16 @@
 import Link from 'next/link'
 import { LogoFull } from '@/components/LogoFull'
+import { Footer } from '@/components/Footer'
+import { getServerTranslation } from '@/lib/i18n-server'
 import styles from './landing.module.css'
 
-export default function LandingPage() {
+// Cookie-driven i18n means the page can never be statically prerendered —
+// the language is per-request, not per-build.
+export const dynamic = 'force-dynamic'
+
+export default async function LandingPage() {
+  const { t } = await getServerTranslation()
+
   return (
     <main className={styles.page}>
       {/* Logo */}
@@ -12,48 +20,41 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className={styles.hero} aria-label="Hero">
-        <h1 className={styles.heroHeadline}>Your Google reviews, handled.</h1>
-        <p className={styles.heroSub}>
-          Autoplier reads every new review and posts a response in your voice,
-          automatically. No approval needed.
-        </p>
+        <h1 className={styles.heroHeadline}>{t.landingHeroHeadline}</h1>
+        <p className={styles.heroSub}>{t.landingHeroSub}</p>
         <Link href="/onboarding" className={styles.btnCta}>
-          Get started free
+          {t.landingCtaGetStarted}
         </Link>
-        <p className={styles.trustLine}>14-day free trial. Cancel anytime.</p>
+        <p className={styles.trustLine}>{t.landingTrustLine}</p>
       </section>
 
       <div className={styles.sectionDivider} role="separator" />
 
       {/* How it works */}
       <section className={styles.stepsSection} aria-label="How it works">
-        <h2 className={styles.sectionTitle}>Set it up once. It runs forever.</h2>
+        <h2 className={styles.sectionTitle}>{t.landingStepsTitle}</h2>
 
         <div className={styles.stepItem}>
           <span className={styles.stepNum} aria-hidden="true">1</span>
           <div className={styles.stepBody}>
-            <p className={styles.stepLabel}>Connect your Google Business Profile</p>
-            <p className={styles.stepDesc}>One OAuth tap, takes 30 seconds.</p>
+            <p className={styles.stepLabel}>{t.landingStep1Label}</p>
+            <p className={styles.stepDesc}>{t.landingStep1Desc}</p>
           </div>
         </div>
 
         <div className={styles.stepItem}>
           <span className={styles.stepNum} aria-hidden="true">2</span>
           <div className={styles.stepBody}>
-            <p className={styles.stepLabel}>Describe your restaurant&apos;s voice</p>
-            <p className={styles.stepDesc}>
-              Tell us how you talk to customers. The AI calibrates to match.
-            </p>
+            <p className={styles.stepLabel}>{t.landingStep2Label}</p>
+            <p className={styles.stepDesc}>{t.landingStep2Desc}</p>
           </div>
         </div>
 
         <div className={styles.stepItem}>
           <span className={styles.stepNum} aria-hidden="true">3</span>
           <div className={styles.stepBody}>
-            <p className={styles.stepLabel}>Go live</p>
-            <p className={styles.stepDesc}>
-              Every new review gets a response within 15 minutes, automatically posted.
-            </p>
+            <p className={styles.stepLabel}>{t.landingStep3Label}</p>
+            <p className={styles.stepDesc}>{t.landingStep3Desc}</p>
           </div>
         </div>
       </section>
@@ -64,28 +65,20 @@ export default function LandingPage() {
       <section className={styles.testimonials} aria-label="Testimonials">
         <article className={styles.testimonial}>
           <div className={styles.testimonialStars} aria-label="5 stars">★★★★★</div>
-          <p className={styles.testimonialQuote}>
-            &ldquo;We used to spend an hour every morning on reviews. Now it just happens.
-            The responses sound exactly like us.&rdquo;
-          </p>
-          <p className={styles.testimonialSource}>Naomi&apos;s, Miami</p>
+          <p className={styles.testimonialQuote}>{t.landingTestimonial1Quote}</p>
+          <p className={styles.testimonialSource}>{t.landingTestimonial1Source}</p>
         </article>
 
         <article className={styles.testimonial}>
           <div className={styles.testimonialStars} aria-label="5 stars">★★★★★</div>
-          <p className={styles.testimonialQuote}>
-            &ldquo;Even our regulars can&apos;t tell it&apos;s AI. It picked up on the way we
-            say &lsquo;cheers&rsquo; instead of &lsquo;thank you&rsquo; after two examples.&rdquo;
-          </p>
-          <p className={styles.testimonialSource}>Bocado Tapas, Worcester</p>
+          <p className={styles.testimonialQuote}>{t.landingTestimonial2Quote}</p>
+          <p className={styles.testimonialSource}>{t.landingTestimonial2Source}</p>
         </article>
 
         <article className={styles.testimonial}>
           <div className={styles.testimonialStars} aria-label="5 stars">★★★★★</div>
-          <p className={styles.testimonialQuote}>
-            &ldquo;Set it up on a Tuesday, forgot about it by Thursday. That&apos;s the whole point.&rdquo;
-          </p>
-          <p className={styles.testimonialSource}>Pink&apos;s, Madrid</p>
+          <p className={styles.testimonialQuote}>{t.landingTestimonial3Quote}</p>
+          <p className={styles.testimonialSource}>{t.landingTestimonial3Source}</p>
         </article>
       </section>
 
@@ -94,38 +87,35 @@ export default function LandingPage() {
       {/* Pricing */}
       <section aria-label="Pricing">
         <div className={styles.pricingCard}>
-          <p className={styles.pricingAmount}>$29/month — unlimited locations</p>
-          <p className={styles.pricingSub}>14-day free trial, no credit card required.</p>
+          <p className={styles.pricingAmount}>{t.landingPricingAmount}</p>
+          <p className={styles.pricingSub}>{t.landingPricingSub}</p>
 
           <ul className={styles.pricingFeatures}>
             <li className={styles.pricingFeature}>
               <span className={styles.pricingCheck} aria-hidden="true">&#10003;</span>
-              Automatic responses to every Google review
+              {t.landingPricingFeature1}
             </li>
             <li className={styles.pricingFeature}>
               <span className={styles.pricingCheck} aria-hidden="true">&#10003;</span>
-              Calibrated to your brand voice
+              {t.landingPricingFeature2}
             </li>
             <li className={styles.pricingFeature}>
               <span className={styles.pricingCheck} aria-hidden="true">&#10003;</span>
-              Daily or weekly digest email
+              {t.landingPricingFeature3}
             </li>
             <li className={styles.pricingFeature}>
               <span className={styles.pricingCheck} aria-hidden="true">&#10003;</span>
-              Instant alerts for low-rated reviews
+              {t.landingPricingFeature4}
             </li>
           </ul>
 
           <Link href="/onboarding" className={styles.btnCta}>
-            Get started free
+            {t.landingCtaGetStarted}
           </Link>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className={styles.siteFooter}>
-        Autoplier · <a href="mailto:contact@autoplier.com">contact@autoplier.com</a> · <Link href="/privacy">Privacy</Link>
-      </footer>
+      <Footer />
     </main>
   )
 }

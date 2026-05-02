@@ -2,6 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
 import { encrypt, decrypt } from '@/lib/crypto'
 import { fetchReviews, postReply, refreshOAuthToken } from '@/lib/gbp-client'
+import { checkOutputAllowlist } from '@/lib/output-allowlist'
+import { classifyReviewSafety } from '@/lib/review-safety'
 import { buildGeneratePrompt } from '@/prompts/generate-response'
 import { buildQualityCheckPrompt, type QualityCheckResult } from '@/prompts/quality-check'
 import { sendFailureAlert } from '@/services/digest'
@@ -71,7 +73,7 @@ async function getOAuthTokens(locationId: string): Promise<OAuthTokenRow> {
 async function getBrandVoice(locationId: string): Promise<BrandVoiceRow> {
   const { data, error } = await getSupabase()
     .from('brand_voices')
-    .select('personality, avoid, signature_phrases, language, owner_description, auto_post_enabled')
+    .select('personality, avoid, signature_phrases, language, auto_detect_language, owner_description, auto_post_enabled')
     .eq('location_id', locationId)
     .single()
 
@@ -290,6 +292,24 @@ async function processOneReview(
   accessToken: string,
   lastPostedText: string | null,
 ): Promise<string | null> {
+  // Pre-generation: classify the reviewer-supplied text. Anything that looks
+  // like a prompt-injection attempt (jailbreak phrases, role tags, embedded
+  // URLs/domains, base64 payloads) is blocked BEFORE it reaches the LLM.
+  // The review still gets stored with a clear failure_reason so an owner
+  // can review it manually via the dashboard.
+  const safety = classifyReviewSafety(review.text)
+  if (!safety.safe) {
+    await storeResponse(
+      locationId,
+      review.google_review_id,
+      '',
+      'blocked_pending_regen',
+      `Needs human review: ${safety.reason ?? 'review text flagged as unsafe'}`,
+      0,
+    )
+    return null
+  }
+
   // Generation errors (OpenAI down, empty response) are not retried here —
   // the review stays unanswered and will be picked up on the next cron run.
   let draft: string
@@ -297,6 +317,23 @@ async function processOneReview(
     draft = await generate(brandVoice, examples, review)
   } catch (err) {
     console.error(`generate failed for review ${review.google_review_id}:`, err)
+    return null
+  }
+
+  // Post-generation: reject responses containing URLs or phone numbers that
+  // don't already appear in owner-approved calibration examples. Catches the
+  // most damaging payloads (attacker.com promo links, fake support phone
+  // numbers) even if the injection bypassed the classifier and the LLM.
+  const outputCheck = checkOutputAllowlist(draft, examples)
+  if (!outputCheck.pass) {
+    await storeResponse(
+      locationId,
+      review.google_review_id,
+      draft,
+      'blocked_pending_regen',
+      `Needs human review: ${outputCheck.reason ?? 'output failed allowlist'}`,
+      1,
+    )
     return null
   }
 
@@ -309,6 +346,21 @@ async function processOneReview(
       draft = await generate(brandVoice, examples, review)
     } catch (err) {
       console.error(`regen failed for review ${review.google_review_id}:`, err)
+      return null
+    }
+
+    // Re-check the regenerated draft against the allowlist before retrying
+    // the quality gate. Same justification as the first pass.
+    const regenOutputCheck = checkOutputAllowlist(draft, examples)
+    if (!regenOutputCheck.pass) {
+      await storeResponse(
+        locationId,
+        review.google_review_id,
+        draft,
+        'blocked_pending_regen',
+        `Needs human review: ${regenOutputCheck.reason ?? 'regen output failed allowlist'}`,
+        2,
+      )
       return null
     }
 

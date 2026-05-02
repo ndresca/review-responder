@@ -1,58 +1,58 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import type { ReadonlyRequestCookies } from 'next/dist/server/web/spec-extension/adapters/request-cookies'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 
-// Shared session validation. The autoplier_session cookie holds a raw owner
-// UUID set by src/app/api/auth/google/callback/route.ts after a successful
-// OAuth round-trip. Every protected API route used to trust this value
-// directly — meaning any non-empty cookie passed.
+// Shared session validation. Reads the Supabase auth JWT from the sb-* auth
+// cookies set by the OAuth callback (src/app/api/auth/google/callback/route.ts)
+// after JWT minting. Supabase's SSR client validates the JWT signature and
+// expiry server-side via auth.getUser(). The JWT contains sub=ownerId, and
+// it rotates: the callback mints a fresh 1h-expiry token on every successful
+// OAuth round-trip.
 //
-// getValidSession() upgrades that to a real check: cookie present, value is
-// a UUID, and the user actually exists in auth.users (i.e. the row hasn't
-// been deleted). Returns { ownerId } on success, null otherwise.
+// Returns { ownerId } on success, null otherwise.
+//
+// Migration note: getValidSession previously read autoplier_session, a cookie
+// holding the raw owner UUID. That cookie was a stable, non-rotating session
+// identifier — leak-once-and-it's-yours-for-30-days. Now removed in favor of
+// the rotating sb-* JWT.
 //
 // Callers consume it like:
 //   const session = await getValidSession(await cookies())
 //   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 //   const ownerId = session.ownerId
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-// Loose cookie-store type — accepts both the readonly `cookies()` return
-// from next/headers and the read-write variant on responses. We only need
-// .get(name) which is on both.
-type CookieStoreLike = Pick<ReadonlyRequestCookies, 'get'>
+type CookieStoreLike = Pick<ReadonlyRequestCookies, 'get' | 'getAll'>
 
 export type ValidSession = { ownerId: string }
 
 export async function getValidSession(cookieStore: CookieStoreLike): Promise<ValidSession | null> {
-  const raw = cookieStore.get('autoplier_session')?.value
-  if (!raw) return null
-
-  // Cheap shape check — bail before hitting the DB on obviously-bogus values.
-  // Future cookie format changes (signed tokens, JWTs) would replace this.
-  if (!UUID_REGEX.test(raw)) return null
-
   const url = process.env.SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) {
-    // Misconfigured environment — fail closed.
-    console.error('getValidSession: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing')
+  const anonKey = process.env.SUPABASE_ANON_KEY
+  if (!url || !anonKey) {
+    console.error('getValidSession: SUPABASE_URL or SUPABASE_ANON_KEY missing')
     return null
   }
 
-  const supabase = createClient(url, key, { auth: { persistSession: false } })
+  // createServerClient + auth.getUser() validates the JWT against
+  // SUPABASE_JWT_SECRET (configured on the auth server) and confirms the
+  // user still exists. Expired or tampered tokens return error/null user.
+  const supabase = createServerClient(url, anonKey, {
+    cookies: {
+      getAll() { return cookieStore.getAll() },
+      // No-op — we don't refresh in this code path. The OAuth callback re-mints
+      // on next auth round-trip.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      setAll(_cookies: { name: string; value: string; options: CookieOptions }[]) {},
+    },
+  })
 
-  // Verify the user still exists. auth.admin.getUserById returns an error
-  // for missing/deleted users — we treat any non-success as invalid session.
   try {
-    const { data, error } = await supabase.auth.admin.getUserById(raw)
-    if (error || !data?.user) return null
-    return { ownerId: data.user.id }
+    const { data: { user }, error } = await supabase.auth.getUser()
+    if (error || !user) return null
+    return { ownerId: user.id }
   } catch (err) {
-    console.error('getValidSession: auth.admin.getUserById threw:', err)
+    console.error('getValidSession: auth.getUser threw:', err)
     return null
   }
 }

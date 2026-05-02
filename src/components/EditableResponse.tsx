@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from '@/lib/i18n-client'
 import styles from './editable-response.module.css'
 
 interface EditableResponseProps {
@@ -11,9 +12,12 @@ interface EditableResponseProps {
 
 export default function EditableResponse({
   response,
-  tagLabel = 'Response sent',
+  tagLabel,
   onSave,
 }: EditableResponseProps) {
+  const { t } = useTranslation()
+  const effectiveTagLabel = tagLabel ?? t.editableResponseSent
+
   const [mode, setMode] = useState<'view' | 'edit' | 'sending' | 'confirmed'>('view')
   const [text, setText] = useState(response)
   const [displayText, setDisplayText] = useState(response)
@@ -47,7 +51,7 @@ export default function EditableResponse({
   if (mode === 'edit' || mode === 'sending') {
     return (
       <div className={styles.editWrap}>
-        <div className={styles.editLabel}>Edit response</div>
+        <div className={styles.editLabel}>{t.editableEditLabel}</div>
         <textarea
           ref={textareaRef}
           className={styles.editTextarea}
@@ -61,11 +65,11 @@ export default function EditableResponse({
             onClick={handleSave}
             disabled={mode === 'sending'}
           >
-            {mode === 'sending' ? 'Sending...' : 'Save & resend'}
+            {mode === 'sending' ? t.editableSending : t.editableSaveAndResend}
           </button>
           {mode !== 'sending' && (
             <button className={styles.cancelLink} onClick={handleCancel}>
-              Cancel
+              {t.editableCancel}
             </button>
           )}
         </div>
@@ -76,14 +80,14 @@ export default function EditableResponse({
   return (
     <div>
       <div className={styles.responseWrap}>
-        <div className={styles.responseTag}>{tagLabel}</div>
+        <div className={styles.responseTag}>{effectiveTagLabel}</div>
         <p className={styles.responseBody}>{displayText}</p>
       </div>
       {mode === 'confirmed' ? (
-        <span className={styles.confirmation}>✓ Updated</span>
+        <span className={styles.confirmation}>{t.editableUpdated}</span>
       ) : (
         <button className={styles.editLink} onClick={() => setMode('edit')}>
-          Edit reply
+          {t.editableEditReply}
         </button>
       )}
     </div>

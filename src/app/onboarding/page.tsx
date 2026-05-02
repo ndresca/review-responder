@@ -3,10 +3,16 @@
 import { useState, useRef, useCallback, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { LogoFull } from '@/components/LogoFull'
+import { Footer } from '@/components/Footer'
+import { useTranslation } from '@/lib/i18n-client'
+import type { Translation } from '@/lib/i18n'
 import styles from './onboarding.module.css'
 
 const TOTAL_STEPS = 5
 
+// Mock seed for calibration cards before the real POST returns. Reviews
+// stay in English; they're placeholder content, immediately swapped out
+// with real GBP-derived examples after the calibrate API call resolves.
 const CALIBRATION_REVIEWS = [
   {
     id: 'calib-1',
@@ -52,19 +58,13 @@ const HOURS = [
   '6:00 PM', '7:00 PM', '8:00 PM', '9:00 PM',
 ]
 
-const ANALYSIS_MESSAGES = [
-  'Connecting to your Google Business Profile...',
-  'Reading your review history...',
-  'Analyzing your response patterns...',
-  'Pre-filling your brand voice...',
-]
+function buildAnalysisMessages(t: Translation): string[] {
+  return [t.onbAnalysis1, t.onbAnalysis2, t.onbAnalysis3, t.onbAnalysis4]
+}
 
-const LOADING_MESSAGES = [
-  'Reading your reviews...',
-  'Finding your voice...',
-  'Crafting sample responses...',
-  'Almost ready...',
-]
+function buildLoadingMessages(t: Translation): string[] {
+  return [t.onbCalibLoading1, t.onbCalibLoading2, t.onbCalibLoading3, t.onbCalibLoading4]
+}
 
 function starsDisplay(count: number) {
   return '★'.repeat(count) + '☆'.repeat(5 - count)
@@ -77,6 +77,9 @@ function starsDisplay(count: number) {
 function OnboardingContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { t } = useTranslation()
+  const ANALYSIS_MESSAGES = buildAnalysisMessages(t)
+  const LOADING_MESSAGES = buildLoadingMessages(t)
   // The OAuth callback (src/app/api/auth/google/callback/route.ts) drops the
   // user back at /onboarding?step=2&locationId={uuid} after auth, and the
   // payment success bounce uses ?step=5. Read the param on initial render
@@ -93,7 +96,7 @@ function OnboardingContent() {
   // Analysis loading (after Google connect, before step 2)
   const [analysisLoading, setAnalysisLoading] = useState(false)
   const [analysisProgress, setAnalysisProgress] = useState(0)
-  const [analysisMsg, setAnalysisMsg] = useState(ANALYSIS_MESSAGES[0])
+  const [analysisMsg, setAnalysisMsg] = useState('')
 
   // Step 2: Brand voice fields (controlled, pre-filled after analysis)
   const [restaurantName, setRestaurantName] = useState('')
@@ -146,7 +149,7 @@ function OnboardingContent() {
   const [calibReady, setCalibReady] = useState(false)
   const [calibError, setCalibError] = useState<string | null>(null)
   const [calibSessionId, setCalibSessionId] = useState<string | null>(null)
-  const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0])
+  const [loadingMsg, setLoadingMsg] = useState('')
 
   // Digest
   const [digest, setDigest] = useState<'daily' | 'weekly'>('daily')
@@ -236,7 +239,7 @@ function OnboardingContent() {
     async function run() {
       if (!locationId) {
         if (cancelled) return
-        setCalibError('Missing location — open onboarding via the Google connect flow so we know which restaurant to calibrate for.')
+        setCalibError(t.onbStep5MissingLocation)
         setCalibLoading(false)
         return
       }
@@ -252,11 +255,7 @@ function OnboardingContent() {
         if (!res.ok) {
           const body = await res.text().catch(() => '')
           console.error(`POST /api/onboarding/calibrate failed: HTTP ${res.status}`, body)
-          setCalibError(
-            res.status === 401 ? 'You need to sign in again before we can calibrate.'
-            : res.status === 403 ? 'You don\'t have access to this location.'
-            : 'We couldn\'t generate sample responses. Try again in a moment.',
-          )
+          setCalibError(t.dashLoadError)
           setCalibLoading(false)
           return
         }
@@ -300,7 +299,7 @@ function OnboardingContent() {
       } catch (err) {
         if (cancelled) return
         console.error('POST /api/onboarding/calibrate threw:', err)
-        setCalibError('Network error — check your connection and try again.')
+        setCalibError(t.dashNetworkError)
         setCalibLoading(false)
       }
     }
@@ -325,16 +324,50 @@ function OnboardingContent() {
     setCalibLoading(true)
   }
 
+  // Direct entry to step 3 (browser back/forward, refresh, deep link) skips
+  // handleStep2Continue, leaving calib state idle and rendering nothing. Kick
+  // off calibration here so the user always sees either the spinner, an error,
+  // or the cards. The loading effect handles the missing-locationId case.
+  useEffect(() => {
+    if (currentStep !== 3) return
+    if (calibLoading || calibReady || calibError) return
+    startCalibLoading()
+  }, [currentStep, calibLoading, calibReady, calibError])
+
   function validateStep2(): boolean {
     const errors: Record<string, string> = {}
-    if (!restaurantName.trim()) errors.restaurantName = 'This field is required.'
-    if (!brandVoice.trim()) errors.brandVoice = 'This field is required.'
+    if (!restaurantName.trim()) errors.restaurantName = t.onbStep2FieldRequiredError
+    if (!brandVoice.trim()) errors.brandVoice = t.onbStep2FieldRequiredError
     setValidationErrors(errors)
     return Object.keys(errors).length === 0
   }
 
-  function handleStep2Continue() {
+  async function handleStep2Continue() {
     if (!validateStep2()) return
+
+    // Persist the language picker + auto-detect toggle so the calibration
+    // POST and the auto-post pipeline both pick them up from brand_voices.
+    // Best-effort: a failure here is non-fatal — the user can still proceed
+    // with the defaults set by the OAuth callback (language='en',
+    // auto_detect_language=false), and edit them later in settings.
+    if (locationId) {
+      try {
+        await fetch('/api/settings/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            locationId,
+            personality,
+            avoid,
+            language,
+            autoDetectLanguage: autoLang,
+          }),
+        })
+      } catch (err) {
+        console.error('handleStep2Continue: settings/save threw (continuing):', err)
+      }
+    }
+
     goToStep(3)
     startCalibLoading()
   }
@@ -623,7 +656,7 @@ function OnboardingContent() {
           let cls = styles.progressSegment
           if (stepNum < currentStep) cls += ` ${styles.done}`
           else if (stepNum === currentStep) cls += ` ${styles.active}`
-          return <div key={stepNum} className={cls} aria-label={`Step ${stepNum} of ${TOTAL_STEPS}`} />
+          return <div key={stepNum} className={cls} aria-label={t.onbStepAriaTemplate(stepNum, TOTAL_STEPS)} />
         })}
       </nav>
 
@@ -631,7 +664,7 @@ function OnboardingContent() {
       {currentStep >= 2 && !analysisLoading && !calibLoading && (
         <div className={styles.backNav}>
           <button className={styles.backLink} onClick={handleBack}>
-            ← Back
+            {t.back}
           </button>
         </div>
       )}
@@ -655,32 +688,27 @@ function OnboardingContent() {
         <section className={styles.step} aria-label="Step 1: Connect Google">
           <div className={styles.connectCard}>
             <div>
-              <h1 className={styles.connectHeadline}>Connect your Google account.</h1>
-              <p className={styles.connectSub}>
-                Connect your Google Business Profile to get started — we&apos;ll handle responses from there.
-              </p>
+              <h1 className={styles.connectHeadline}>{t.onbStep1Headline}</h1>
+              <p className={styles.connectSub}>{t.onbStep1Sub}</p>
             </div>
             {process.env.NEXT_PUBLIC_DEMO_MODE === 'true' ? (
               <button className={`${styles.btn} ${styles.btnGoogle}`} onClick={startAnalysis}>
                 <span className={styles.googleMark} aria-hidden="true">G</span>
-                Connect with Google
+                {t.onbStep1Connect}
               </button>
             ) : (
               <a href="/api/auth/google" className={`${styles.btn} ${styles.btnGoogle}`}>
                 <span className={styles.googleMark} aria-hidden="true">G</span>
-                Connect with Google
+                {t.onbStep1Connect}
               </a>
             )}
-            <p className={styles.connectNote}>
-              We request read access to your reviews and post permission for responses.<br />
-              You can disconnect at any time from Settings.
-            </p>
+            <p className={styles.connectNote}>{t.onbStep1Note}</p>
             {/* TODO: remove before launch */}
             <button
               className={styles.skipLink}
               onClick={() => goToStep(2)}
             >
-              Skip for now
+              {t.skipForNow}
             </button>
           </div>
         </section>
@@ -689,20 +717,18 @@ function OnboardingContent() {
       {/* STEP 2: Brand voice */}
       {currentStep === 2 && !analysisLoading && (
         <section className={styles.step} aria-label="Step 2: Describe your brand">
-          <h1 className={styles.stepHeadline}>How does your restaurant talk?</h1>
-          <p className={styles.stepSub}>
-            We pre-filled this from your Google Business Profile and review history. Edit anything that doesn&apos;t feel right.
-          </p>
+          <h1 className={styles.stepHeadline}>{t.onbStep2Headline}</h1>
+          <p className={styles.stepSub}>{t.onbStep2Sub}</p>
 
           {/* Required fields */}
           <div className={styles.field}>
             <label className={styles.fieldLabel} htmlFor="restaurant-name">
-              Restaurant name <span className={styles.fieldRequired}>required</span>
+              {t.onbStep2RestaurantLabel} <span className={styles.fieldRequired}>{t.onbStep2FieldRequired}</span>
             </label>
             <input
               type="text"
               id="restaurant-name"
-              placeholder="e.g. Cafe Luna, The Roasted Vine"
+              placeholder={t.onbStep2RestaurantPlaceholder}
               autoComplete="off"
               className={`${styles.textInput} ${validationErrors.restaurantName ? styles.inputError : ''}`}
               value={restaurantName}
@@ -715,12 +741,12 @@ function OnboardingContent() {
 
           <div className={styles.field}>
             <label className={styles.fieldLabel} htmlFor="brand-voice">
-              Your brand voice <span className={styles.fieldRequired}>required</span>
+              {t.onbStep2VoiceLabel} <span className={styles.fieldRequired}>{t.onbStep2FieldRequired}</span>
             </label>
             <textarea
               id="brand-voice"
               rows={5}
-              placeholder="Describe your restaurant in your own words — how you talk to customers, phrases you always use, things you'd never say."
+              placeholder={t.onbStep2VoicePlaceholder}
               autoComplete="off"
               spellCheck
               className={`${styles.textarea} ${validationErrors.brandVoice ? styles.inputError : ''}`}
@@ -734,7 +760,7 @@ function OnboardingContent() {
 
           <div className={styles.field}>
             <label className={styles.fieldLabel} htmlFor="language">
-              Primary language <span className={styles.fieldRequired}>required</span>
+              {t.onbStep2LanguageLabel} <span className={styles.fieldRequired}>{t.onbStep2FieldRequired}</span>
             </label>
             <select
               id="language"
@@ -742,30 +768,30 @@ function OnboardingContent() {
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
             >
-              <option value="en">English</option>
-              <option value="es">Spanish</option>
-              <option value="fr">French</option>
-              <option value="pt">Portuguese</option>
-              <option value="it">Italian</option>
-              <option value="de">German</option>
-              <option value="ja">Japanese</option>
-              <option value="zh">Mandarin</option>
-              <option value="ar">Arabic</option>
+              <option value="en">{t.languageEnglish}</option>
+              <option value="es">{t.languageSpanish}</option>
+              <option value="fr">{t.languageFrench}</option>
+              <option value="pt">{t.languagePortuguese}</option>
+              <option value="it">{t.languageItalian}</option>
+              <option value="de">{t.languageGerman}</option>
+              <option value="ja">{t.languageJapanese}</option>
+              <option value="zh">{t.languageMandarin}</option>
+              <option value="ar">{t.languageArabic}</option>
             </select>
           </div>
 
           {/* Optional section */}
-          <p className={styles.optionalSectionLabel}>Optional details</p>
+          <p className={styles.optionalSectionLabel}>{t.onbStep2OptionalSection}</p>
 
           <div className={styles.optionalFields}>
             <div className={styles.field}>
               <label className={styles.fieldLabel} htmlFor="personality">
-                Personality <span className={styles.fieldOptional}>optional</span>
+                {t.onbStep2PersonalityLabel} <span className={styles.fieldOptional}>{t.onbStep2FieldOptional}</span>
               </label>
               <input
                 type="text"
                 id="personality"
-                placeholder="e.g. warm, local, slightly cheeky"
+                placeholder={t.onbStep2PersonalityPlaceholder}
                 autoComplete="off"
                 className={styles.textInput}
                 value={personality}
@@ -775,12 +801,12 @@ function OnboardingContent() {
 
             <div className={styles.field}>
               <label className={styles.fieldLabel} htmlFor="avoid">
-                Phrases to avoid <span className={styles.fieldOptional}>optional</span>
+                {t.onbStep2AvoidLabel} <span className={styles.fieldOptional}>{t.onbStep2FieldOptional}</span>
               </label>
               <input
                 type="text"
                 id="avoid"
-                placeholder="e.g. We apologise for any inconvenience"
+                placeholder={t.onbStep2AvoidPlaceholder}
                 autoComplete="off"
                 className={styles.textInput}
                 value={avoid}
@@ -792,18 +818,17 @@ function OnboardingContent() {
             <div className={styles.fieldToggleRow}>
               <div className={styles.fieldToggleInfo}>
                 <span className={styles.fieldLabel}>
-                  Respond in the language of each review <span className={styles.fieldOptional}>optional</span>
+                  {t.onbStep2AutoLangLabel} <span className={styles.fieldOptional}>{t.onbStep2FieldOptional}</span>
                 </span>
                 <span className={styles.fieldToggleSub}>
-                  For example: an English review gets an English reply, a Spanish{' '}<br />
-                  review gets a Spanish reply, and so on.
+                  {t.onbStep2AutoLangSub}
                 </span>
               </div>
               <button
                 className={styles.toggle}
                 role="switch"
                 aria-checked={autoLang}
-                aria-label="Auto-detect review language"
+                aria-label={t.onbStep2AutoLangAria}
                 onClick={() => setAutoLang(!autoLang)}
               >
                 <span className={styles.toggleTrack}>
@@ -814,13 +839,13 @@ function OnboardingContent() {
 
             <div className={styles.field}>
               <label className={styles.fieldLabel}>
-                Upload a brand book or tone guide <span className={styles.fieldOptional}>optional</span>
+                {t.onbStep2UploadLabel} <span className={styles.fieldOptional}>{t.onbStep2FieldOptional}</span>
               </label>
               <div
                 className={styles.dropZone}
                 tabIndex={0}
                 role="button"
-                aria-label="Upload a file"
+                aria-label={t.onbStep2UploadLabel}
                 onClick={() => fileInputRef.current?.click()}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click() } }}
                 onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add(styles.dragover) }}
@@ -832,8 +857,8 @@ function OnboardingContent() {
                   <polyline points="17 8 12 3 7 8" />
                   <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
-                <span className={styles.dropZoneText}>Drop a file or click to browse</span>
-                <span className={styles.dropZoneFormats}>PDF, DOC, DOCX, TXT</span>
+                <span className={styles.dropZoneText}>{t.onbStep2DropZoneText}</span>
+                <span className={styles.dropZoneFormats}>{t.onbStep2DropZoneFormats}</span>
                 {fileName && <span className={styles.dropZoneFile}>✓ {fileName}</span>}
               </div>
               <input
@@ -850,7 +875,7 @@ function OnboardingContent() {
             className={`${styles.btn} ${styles.btnPrimary}`}
             onClick={handleStep2Continue}
           >
-            Continue
+            {t.continue}
           </button>
         </section>
       )}
@@ -862,9 +887,7 @@ function OnboardingContent() {
             <div className={styles.calibPageLoading} role="status" aria-live="polite">
               <span className={styles.calibPageSpinner} aria-hidden="true" />
               <p className={styles.calibPageLoadingText}>{loadingMsg}</p>
-              <p className={styles.calibPageLoadingSub}>
-                Generating 6 sample responses in your voice. This usually takes 10–25 seconds.
-              </p>
+              <p className={styles.calibPageLoadingSub}>{t.onbStep3GeneratingSub}</p>
             </div>
           )}
 
@@ -875,14 +898,14 @@ function OnboardingContent() {
                 className={`${styles.btn} ${styles.btnPrimary}`}
                 onClick={startCalibLoading}
               >
-                Try again
+                {t.tryAgain}
               </button>
               {/* TODO: remove before launch */}
               <button
                 className={styles.skipLink}
                 onClick={() => goToStep(4)}
               >
-                Skip for now
+                {t.skipForNow}
               </button>
             </div>
           )}
@@ -890,10 +913,10 @@ function OnboardingContent() {
           {calibReady && !calibLoading && !calibError && (
             <div>
               <div className={styles.calibrationProgress} role="status" aria-live="polite">
-                We generated sample responses based on your real reviews.<br />
-                <strong>Accept at least 3 to continue.</strong>{' '}
+                {t.onbStep3Sub}<br />
+                <strong>{t.onbStep3Bold}</strong>{' '}
                 <span className={styles.calibrationCount} style={accepted.size >= 3 ? { color: 'var(--success)' } : undefined}>
-                  {accepted.size} accepted so far.
+                  {accepted.size} {t.onbStep3CountSuffix}
                 </span>
               </div>
 
@@ -920,11 +943,11 @@ function OnboardingContent() {
                         {starsDisplay(meta.stars)}
                       </span>
                       <span className={`${styles.calibTypeBadge} ${badgeClass}`}>
-                        {meta.type.charAt(0).toUpperCase() + meta.type.slice(1)}
+                        {meta.type === 'positive' ? t.onbStep3TypePositive : meta.type === 'mixed' ? t.onbStep3TypeMixed : t.onbStep3TypeNegative}
                       </span>
                       {isAccepted && (
                         <span className={styles.calibAcceptedBadge} aria-hidden="true">
-                          ✓ Accepted
+                          {t.onbStep3Accepted}
                         </span>
                       )}
                     </div>
@@ -933,14 +956,12 @@ function OnboardingContent() {
                     {isLoading ? (
                       <div className={styles.calibCardLoading} role="status" aria-live="polite">
                         <span className={styles.calibSpinner} aria-hidden="true" />
-                        <span className={styles.calibCardLoadingText}>Generating new response...</span>
+                        <span className={styles.calibCardLoadingText}>{t.onbStep3Generating}</span>
                       </div>
                     ) : editingCardId === cardId ? (
-                      // Inline editor — replaces response + actions. Cancel
-                      // discards changes and restores the original response.
                       <div className={styles.calibEdit}>
                         <label className={styles.calibFeedbackLabel} htmlFor={`edit-${cardId}`}>
-                          Edit the AI response — your version is what gets saved.
+                          {t.onbStep3EditLabel}
                         </label>
                         <textarea
                           id={`edit-${cardId}`}
@@ -956,55 +977,50 @@ function OnboardingContent() {
                             onClick={() => handleEditSave(cardId)}
                             disabled={!editText.trim()}
                           >
-                            Save
+                            {t.save}
                           </button>
                           <button
                             className={`${styles.btn} ${styles.btnCalibOutline}`}
                             onClick={handleEditCancel}
                           >
-                            Cancel
+                            {t.cancel}
                           </button>
                         </div>
                       </div>
                     ) : rejectionCount >= 2 && !isAccepted ? (
-                      // After two rejections, the AI response and Looks good /
-                      // Not quite buttons hide and we surface the feedback
-                      // form. They re-appear once feedback is submitted (which
-                      // resets rejectionCount to 0 in handleFeedbackSubmit) so
-                      // the user evaluates the regenerated response cleanly.
                       <div className={styles.calibFeedback}>
                         <label className={styles.calibFeedbackLabel} htmlFor={`feedback-${cardId}`}>
-                          What didn&apos;t feel right? The more you tell us, the better we&apos;ll match your voice.
+                          {t.onbStep3FeedbackLabel}
                         </label>
                         <textarea
                           id={`feedback-${cardId}`}
                           className={styles.calibFeedbackTextarea}
                           rows={2}
-                          placeholder="Optional — skip if you prefer"
+                          placeholder={t.onbStep3FeedbackPlaceholder}
                         />
                         <button
                           className={`${styles.btn} ${styles.btnFeedbackSubmit}`}
                           onClick={() => handleFeedbackSubmit(cardId)}
                         >
-                          Submit feedback
+                          {t.onbStep3SubmitFeedback}
                         </button>
                       </div>
                     ) : (
                       <>
                         <div className={styles.calibResponseWrap}>
-                          <div className={styles.calibResponseTag}>AI response</div>
+                          <div className={styles.calibResponseTag}>{t.onbStep3AiResponse}</div>
                           <p className={styles.calibResponseBody}>{live.aiResponse}</p>
                         </div>
                         {!isAccepted && (
                           <div className={styles.calibActions}>
                             <button className={`${styles.btn} ${styles.btnCalibOutline}`} onClick={() => handleAccept(cardId)}>
-                              Looks good
+                              {t.onbStep3LooksGood}
                             </button>
                             <button className={`${styles.btn} ${styles.btnCalibOutline}`} onClick={() => handleReject(cardId)}>
-                              Not quite
+                              {t.onbStep3NotQuite}
                             </button>
                             <button className={`${styles.btn} ${styles.btnCalibOutline}`} onClick={() => handleEditStart(cardId)}>
-                              Edit
+                              {t.onbStep3Edit}
                             </button>
                           </div>
                         )}
@@ -1017,7 +1033,7 @@ function OnboardingContent() {
               {accepted.size >= 3 && (
                 <div className={styles.goLiveWrap}>
                   <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => goToStep(4)}>
-                    Go Live
+                    {t.onbStep3GoLive}
                   </button>
                 </div>
               )}
@@ -1029,10 +1045,8 @@ function OnboardingContent() {
       {/* STEP 4: Digest preference */}
       {currentStep === 4 && (
         <section className={styles.step} aria-label="Step 4: Digest preference">
-          <h1 className={styles.stepHeadline}>How often do you want a summary?</h1>
-          <p className={styles.stepSub}>
-            We&apos;ll email you a digest of all responses sent. Pick whatever fits your schedule.
-          </p>
+          <h1 className={styles.stepHeadline}>{t.onbStep4Headline}</h1>
+          <p className={styles.stepSub}>{t.onbStep4Sub}</p>
 
           <div className={styles.digestOptions} role="radiogroup" aria-label="Digest frequency">
             <div
@@ -1044,8 +1058,8 @@ function OnboardingContent() {
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDigest('daily') } }}
             >
               <span className={styles.digestOptionIcon} aria-hidden="true">📅</span>
-              <span className={styles.digestOptionLabel}>Daily</span>
-              <span className={styles.digestOptionDesc}>A quick morning recap</span>
+              <span className={styles.digestOptionLabel}>{t.onbStep4Daily}</span>
+              <span className={styles.digestOptionDesc}>{t.onbStep4DailyDesc}</span>
             </div>
             <div
               className={`${styles.digestOption} ${digest === 'weekly' ? styles.digestOptionSelected : ''}`}
@@ -1056,24 +1070,22 @@ function OnboardingContent() {
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDigest('weekly') } }}
             >
               <span className={styles.digestOptionIcon} aria-hidden="true">📊</span>
-              <span className={styles.digestOptionLabel}>Weekly</span>
-              <span className={styles.digestOptionDesc}>Every Monday morning</span>
+              <span className={styles.digestOptionLabel}>{t.onbStep4Weekly}</span>
+              <span className={styles.digestOptionDesc}>{t.onbStep4WeeklyDesc}</span>
             </div>
           </div>
 
           <div className={styles.alertToggleWrap}>
             <div className={styles.alertToggleRow}>
               <div className={styles.alertToggleInfo}>
-                <span className={styles.alertToggleLabel}>Instant alert for low ratings</span>
-                <span className={styles.alertToggleDesc}>
-                  Send me a push notification immediately when a review under 3 stars is posted.
-                </span>
+                <span className={styles.alertToggleLabel}>{t.onbStep4InstantAlert}</span>
+                <span className={styles.alertToggleDesc}>{t.onbStep4InstantAlertDesc}</span>
               </div>
               <button
                 className={styles.toggle}
                 role="switch"
                 aria-checked={lowAlert}
-                aria-label="Enable instant alerts for low ratings"
+                aria-label={t.onbStep4InstantAlert}
                 onClick={() => setLowAlert(!lowAlert)}
               >
                 <span className={styles.toggleTrack}>
@@ -1084,11 +1096,11 @@ function OnboardingContent() {
           </div>
 
           <div className={styles.timeField}>
-            <label id="time-label">Send at</label>
+            <label id="time-label">{t.onbStep4SendAt}</label>
             <div className={styles.hourPicker} role="group" aria-labelledby="time-label">
               <button
                 className={styles.hourBtn}
-                aria-label="Earlier"
+                aria-label={t.earlierAria}
                 onClick={() => setHourIdx(Math.max(0, hourIdx - 1))}
               >
                 −
@@ -1098,7 +1110,7 @@ function OnboardingContent() {
               </div>
               <button
                 className={styles.hourBtn}
-                aria-label="Later"
+                aria-label={t.laterAria}
                 onClick={() => setHourIdx(Math.min(HOURS.length - 1, hourIdx + 1))}
               >
                 +
@@ -1110,7 +1122,7 @@ function OnboardingContent() {
             className={`${styles.btn} ${styles.btnPrimary}`}
             onClick={() => goToStep(5)}
           >
-            Continue
+            {t.continue}
           </button>
         </section>
       )}
@@ -1118,11 +1130,9 @@ function OnboardingContent() {
       {/* STEP 5: Payment */}
       {currentStep === 5 && (
         <section className={styles.step} aria-label="Step 5: Payment">
-          <h1 className={styles.paymentHeadline}>Start your 14-day free trial.</h1>
-          <p className={styles.paymentSub}>
-            You won&apos;t be charged until your trial ends. Cancel anytime.
-          </p>
-          <p className={styles.paymentPrice}>$29/month</p>
+          <h1 className={styles.paymentHeadline}>{t.onbStep5Headline}</h1>
+          <p className={styles.paymentSub}>{t.onbStep5Sub}</p>
+          <p className={styles.paymentPrice}>{t.onbStep5Price}</p>
 
           <button
             className={`${styles.btn} ${styles.btnAmber}`}
@@ -1152,23 +1162,29 @@ function OnboardingContent() {
               }
             }}
           >
-            Start free trial
+            {t.onbStep5StartTrial}
           </button>
           {!locationId && (
-            <p className={styles.fieldError}>
-              Missing location — reconnect your Google account from step 1 before starting your trial.
-            </p>
+            <p className={styles.fieldError}>{t.onbStep5MissingLocation}</p>
           )}
-          <p className={styles.paymentSecured}>Secured by Stripe</p>
+          <p className={styles.paymentSecured}>{t.onbStep5SecuredByStripe}</p>
+          {/* TODO: remove before launch */}
+          <button
+            className={styles.skipLink}
+            onClick={() => router.push('/dashboard')}
+          >
+            {t.skipForNow}
+          </button>
         </section>
       )}
+      <Footer />
     </main>
   )
 }
 
 export default function OnboardingPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<div />}>
       <OnboardingContent />
     </Suspense>
   )

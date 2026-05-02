@@ -5,9 +5,11 @@ import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { decrypt, encrypt } from '@/lib/crypto'
 import { refreshOAuthToken } from '@/lib/gbp-client'
+import { checkOutputAllowlist } from '@/lib/output-allowlist'
+import { classifyReviewSafety } from '@/lib/review-safety'
 import { buildCalibrationPrompt } from '@/prompts/calibration'
 import { sanitizeForPrompt } from '@/lib/sanitize'
-import type { BrandVoice, ExistingResponse, ScenarioType } from '@/lib/types'
+import type { BrandVoice, CalibrationExample, ExistingResponse, ScenarioType } from '@/lib/types'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -106,6 +108,70 @@ async function fetchAllReviewsFirstPage(
 
   const page = (await res.json()) as { reviews?: GbpReview[] }
   return page.reviews ?? []
+}
+
+// ─── Shared GBP-fetch + classifier filter ────────────────────────────────────
+//
+// Both the POST handler (initial calibration) and the PATCH-path
+// regenerateExample helper need the same flow: fetch GBP reviews, drop the
+// owner-replied ones into the few-shot pool, and strip anything that looks
+// like a prompt-injection attempt before it reaches the LLM. Putting it
+// here means the next code path that needs few-shot context can't ship
+// without the classifier by construction.
+//
+// Layer 1 of the three-layer defense (classifier + delimiter wrap + output
+// allowlist). Mirrors src/services/auto-post.ts's pre-generation filter.
+
+async function fetchAndFilterReviews(
+  googleLocationId: string,
+  accessToken: string,
+): Promise<ExistingResponse[]> {
+  const allReviews = await fetchAllReviewsFirstPage(googleLocationId, accessToken)
+  const candidates = allReviews
+    .filter(r => r.reviewReply?.comment)
+    .map(r => ({
+      review_text: r.comment ?? '',
+      review_rating: STAR_RATING[r.starRating] ?? 0,
+      response_text: r.reviewReply!.comment,
+    }))
+
+  const safe: ExistingResponse[] = []
+  let droppedCount = 0
+  for (const r of candidates) {
+    const verdict = classifyReviewSafety(r.review_text)
+    if (verdict.safe) {
+      safe.push(r)
+    } else {
+      droppedCount++
+    }
+  }
+  if (droppedCount > 0) {
+    console.warn(`fetchAndFilterReviews: dropped ${droppedCount} of ${candidates.length} GBP reviews flagged by classifyReviewSafety`)
+  }
+  return safe
+}
+
+// ─── Shared output-allowlist validator ───────────────────────────────────────
+//
+// Layer 3 of the three-layer defense. Builds a synthetic allowlist source
+// from the owner's existing GBP replies (URLs/phones the owner has actually
+// used) and rejects any generated ai_response that introduces a new URL or
+// phone. Throws on failure so callers can route the rejection however they
+// need (skip+continue in POST, surface to UI in PATCH).
+
+function validateGeneratedExample(
+  aiResponse: string,
+  source: ExistingResponse[],
+): void {
+  const allowlistSource: CalibrationExample[] = source.map(r => ({
+    scenario_type: '5star',
+    review_sample: r.review_text,
+    ai_response: r.response_text,
+  }))
+  const outputCheck = checkOutputAllowlist(aiResponse, allowlistSource)
+  if (!outputCheck.pass) {
+    throw new Error(`validateGeneratedExample: output rejected — ${outputCheck.reason ?? 'allowlist failed'}`)
+  }
 }
 
 // ─── Token resolution (mirrors processLocation in auto-post.ts) ──────────────
@@ -284,7 +350,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   // Load brand voice
   const { data: bvRow, error: bvErr } = await supabase
     .from('brand_voices')
-    .select('personality, avoid, signature_phrases, language, owner_description')
+    .select('personality, avoid, signature_phrases, language, auto_detect_language, owner_description')
     .eq('location_id', locationId)
     .single()
 
@@ -295,6 +361,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     avoid: bvRow.avoid as string,
     signature_phrases: bvRow.signature_phrases as string[],
     language: bvRow.language as string,
+    auto_detect_language: (bvRow.auto_detect_language as boolean | null) ?? false,
     owner_description: bvRow.owner_description as string | null,
   }
 
@@ -307,17 +374,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Failed to load Google credentials' }, { status: 502 })
   }
 
-  // Fetch GBP reviews (all, including replied) for few-shot context
+  // Fetch GBP reviews + apply prompt-injection classifier in one shot.
+  // See fetchAndFilterReviews above — Layer 1 of the three-layer defense.
   let existingResponses: ExistingResponse[] = []
   try {
-    const allReviews = await fetchAllReviewsFirstPage(location.google_location_id as string, accessToken)
-    existingResponses = allReviews
-      .filter(r => r.reviewReply?.comment)
-      .map(r => ({
-        review_text: r.comment ?? '',
-        review_rating: STAR_RATING[r.starRating] ?? 0,
-        response_text: r.reviewReply!.comment,
-      }))
+    existingResponses = await fetchAndFilterReviews(location.google_location_id as string, accessToken)
   } catch (err) {
     // Non-fatal — calibration works without existing responses, just less personalized
     console.warn('fetchAllReviews failed (continuing without examples):', err)
@@ -351,6 +412,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (i > 0) await sleep(300)
     try {
       const output = await generateExample(openai, brandVoice, existingResponses, scenario)
+      // Layer 3 — output allowlist. validateGeneratedExample throws on
+      // failure; the catch below routes that to "skip + continue" so a
+      // single allowlist rejection doesn't kill the whole session.
+      validateGeneratedExample(output.ai_response, existingResponses)
       outputs.push({ ...output, scenario })
     } catch (err) {
       console.error(`calibration: generateExample failed for scenario ${scenario}:`, err)
@@ -574,7 +639,7 @@ async function regenerateExample(
   // Load brand voice
   const { data: bvRow, error: bvErr } = await supabase
     .from('brand_voices')
-    .select('personality, avoid, signature_phrases, language, owner_description')
+    .select('personality, avoid, signature_phrases, language, auto_detect_language, owner_description')
     .eq('location_id', locationId)
     .single()
 
@@ -585,24 +650,18 @@ async function regenerateExample(
     avoid: bvRow.avoid as string,
     signature_phrases: bvRow.signature_phrases as string[],
     language: bvRow.language as string,
+    auto_detect_language: (bvRow.auto_detect_language as boolean | null) ?? false,
     owner_description: bvRow.owner_description as string | null,
   }
 
   // Resolve access token (refreshes if expiring)
   const accessToken = await resolveAccessToken(supabase, locationId)
 
-  // Best-effort GBP fetch for few-shot context — same pattern as POST.
-  // Calibration still works without it; the prompt just has less personalization.
+  // Best-effort GBP fetch + Layer 1 classifier filter — same shared helper
+  // as POST so the regenerate path can't drift.
   let existingResponses: ExistingResponse[] = []
   try {
-    const allReviews = await fetchAllReviewsFirstPage(googleLocationId, accessToken)
-    existingResponses = allReviews
-      .filter(r => r.reviewReply?.comment)
-      .map(r => ({
-        review_text: r.comment ?? '',
-        review_rating: STAR_RATING[r.starRating] ?? 0,
-        response_text: r.reviewReply!.comment,
-      }))
+    existingResponses = await fetchAndFilterReviews(googleLocationId, accessToken)
   } catch (err) {
     console.warn('regenerateExample: fetchAllReviews failed (continuing without examples):', err)
   }
@@ -611,6 +670,12 @@ async function regenerateExample(
   // the owner's free-form feedback about what was wrong with the previous one.
   const openai = buildOpenAI()
   const output = await generateExample(openai, brandVoice, existingResponses, scenario, ownerFeedback)
+
+  // Layer 3 — output allowlist. Throws on failure; the PATCH handler's
+  // try/catch wrapper turns that into a 502 so the UI can surface a clear
+  // "regen produced unexpected content" message instead of saving a
+  // potentially-poisoned example.
+  validateGeneratedExample(output.ai_response, existingResponses)
 
   // Insert as a new pending row in the same session
   const { data: inserted, error: insertErr } = await supabase

@@ -4,11 +4,16 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { LogoFull } from '@/components/LogoFull'
+import { Footer } from '@/components/Footer'
+import { useTranslation } from '@/lib/i18n-client'
+import type { Translation } from '@/lib/i18n'
 import styles from './error.module.css'
 
 // Reason codes are produced by src/app/api/auth/google/callback/route.ts
 // (and any future server-side flow that redirects to /error). Keep this map
-// in sync with redirectError() calls in those routes.
+// in sync with redirectError() calls in those routes. Each entry is keyed by
+// the reason and pulls heading/body from the active translation dictionary.
+
 type ActionKind =
   | { kind: 'try-again'; href: string; label: string }
   | { kind: 'contact-support'; label: string }
@@ -17,81 +22,45 @@ type ErrorVariant = {
   heading: string
   message: string
   primary: ActionKind
-  // Whether to also show the muted "Or contact support" link below the
-  // primary action. Hidden when the primary IS contact support.
   showSupportFallback: boolean
 }
 
 const SUPPORT_MAILTO = 'mailto:contact@autoplier.com'
 
-const VARIANTS: Record<string, ErrorVariant> = {
-  google_denied: {
-    heading: 'Connection declined',
-    message: 'You declined to connect your Google account. You can try again from the onboarding page.',
-    primary: { kind: 'try-again', href: '/onboarding', label: 'Try again' },
-    showSupportFallback: true,
-  },
-  token_exchange: {
-    heading: 'Connection error',
-    message: 'Something went wrong connecting your Google account. Please try again.',
-    primary: { kind: 'try-again', href: '/onboarding', label: 'Try again' },
-    showSupportFallback: true,
-  },
-  missing_state: {
-    heading: 'Session expired',
-    message: 'Your session expired. Please try again.',
-    primary: { kind: 'try-again', href: '/onboarding', label: 'Try again' },
-    showSupportFallback: true,
-  },
-  state_mismatch: {
-    heading: 'Session expired',
-    message: 'Your session expired. Please try again.',
-    primary: { kind: 'try-again', href: '/onboarding', label: 'Try again' },
-    showSupportFallback: true,
-  },
-  no_gbp_accounts: {
-    heading: 'No business profile found',
-    message: "No Google Business Profile found on this account. Make sure you're signed in with the correct Google account.",
-    primary: { kind: 'try-again', href: '/onboarding', label: 'Try again' },
-    showSupportFallback: true,
-  },
-  no_gbp_locations: {
-    heading: 'No business profile found',
-    message: "No Google Business Profile found on this account. Make sure you're signed in with the correct Google account.",
-    primary: { kind: 'try-again', href: '/onboarding', label: 'Try again' },
-    showSupportFallback: true,
-  },
-  rate_limited: {
-    heading: 'Too many attempts',
-    message: 'Too many attempts. Please wait a minute and try again.',
-    primary: { kind: 'try-again', href: '/onboarding', label: 'Try again' },
-    showSupportFallback: false,
-  },
-  db_write: {
-    heading: 'Save failed',
-    message: 'Something went wrong saving your account. Please try again.',
-    primary: { kind: 'try-again', href: '/onboarding', label: 'Try again' },
-    showSupportFallback: true,
-  },
-  config: {
-    heading: 'Configuration error',
-    message: 'Server configuration error. Please contact support.',
-    primary: { kind: 'contact-support', label: 'Contact support' },
-    showSupportFallback: false,
-  },
-}
+function buildVariants(t: Translation): { variants: Record<string, ErrorVariant>; unknown: ErrorVariant } {
+  const tryAgainGoogle: ActionKind = { kind: 'try-again', href: '/onboarding', label: t.errTryAgain }
+  const contactSupport: ActionKind = { kind: 'contact-support', label: t.errContactSupport }
 
-const UNKNOWN_VARIANT: ErrorVariant = {
-  heading: 'Something went wrong',
-  message: 'Something went wrong. Please try again or contact support at contact@autoplier.com.',
-  primary: { kind: 'contact-support', label: 'Contact support' },
-  showSupportFallback: false,
+  const variants: Record<string, ErrorVariant> = {
+    google_access_denied: { heading: t.errGoogleAccessDeniedHead, message: t.errGoogleAccessDeniedBody, primary: tryAgainGoogle, showSupportFallback: true },
+    token_exchange:       { heading: t.errTokenExchangeHead,       message: t.errTokenExchangeBody,       primary: tryAgainGoogle, showSupportFallback: true },
+    missing_state:        { heading: t.errSessionExpiredHead,      message: t.errSessionExpiredBody,      primary: tryAgainGoogle, showSupportFallback: true },
+    state_mismatch:       { heading: t.errSessionExpiredHead,      message: t.errSessionExpiredBody,      primary: tryAgainGoogle, showSupportFallback: true },
+    missing_code:         { heading: t.errMissingCodeHead,         message: t.errMissingCodeBody,         primary: tryAgainGoogle, showSupportFallback: true },
+    no_access_token:      { heading: t.errNoAccessTokenHead,       message: t.errNoAccessTokenBody,       primary: tryAgainGoogle, showSupportFallback: true },
+    no_refresh_token:     { heading: t.errNoRefreshTokenHead,      message: t.errNoRefreshTokenBody,      primary: tryAgainGoogle, showSupportFallback: true },
+    userinfo_fetch:       { heading: t.errUserinfoFetchHead,       message: t.errUserinfoFetchBody,       primary: tryAgainGoogle, showSupportFallback: true },
+    user_creation:        { heading: t.errUserCreationHead,        message: t.errUserCreationBody,        primary: tryAgainGoogle, showSupportFallback: true },
+    rate_limited:         { heading: t.errRateLimitedHead,         message: t.errRateLimitedBody,         primary: tryAgainGoogle, showSupportFallback: false },
+    config:               { heading: t.errConfigHead,              message: t.errConfigBody,              primary: contactSupport, showSupportFallback: false },
+  }
+
+  const unknown: ErrorVariant = {
+    heading: t.errUnknownHead,
+    message: t.errUnknownBody,
+    primary: tryAgainGoogle,
+    showSupportFallback: true,
+  }
+
+  return { variants, unknown }
 }
 
 function ErrorContent() {
+  const { t } = useTranslation()
   const searchParams = useSearchParams()
   const rawReason = searchParams.get('reason')
-  const variant = rawReason && VARIANTS[rawReason] ? VARIANTS[rawReason] : UNKNOWN_VARIANT
+  const { variants, unknown } = buildVariants(t)
+  const variant = rawReason && variants[rawReason] ? variants[rawReason] : unknown
 
   return (
     <main className={styles.page}>
@@ -113,15 +82,14 @@ function ErrorContent() {
               {variant.primary.label}
             </a>
           )}
-          {/* Contact-support is a small muted text link below the primary —
-              available without competing visually with the main action. */}
           {variant.showSupportFallback && (
             <a href={SUPPORT_MAILTO} className={styles.supportLink}>
-              Contact support
+              {t.errContactSupport}
             </a>
           )}
         </div>
       </div>
+      <Footer />
     </main>
   )
 }
