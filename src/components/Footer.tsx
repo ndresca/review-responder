@@ -46,7 +46,7 @@ export function Footer() {
       </div>
 
       <div className={styles.brandLine}>
-        Autoplier · <a href="mailto:contact@autoplier.com">contact@autoplier.com</a> · <Link href="/privacy">{t.landingFooterPrivacy}</Link>
+        Autoplier · <a href="mailto:contact@autoplier.com">contact@autoplier.com</a> · <Link href="/privacy">{t.landingFooterPrivacy}</Link> · <Link href="/terms">{t.landingFooterTerms}</Link>
       </div>
     </footer>
   )
