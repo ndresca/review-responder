@@ -206,10 +206,22 @@ function OnboardingContent() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const goToStep = useCallback((n: number) => {
+    if (n < 1 || n > TOTAL_STEPS) return
     setCurrentStep(n)
     setValidationErrors({})
+    // Push the step into the URL so window.location.search always
+    // reflects current state. setLanguage's hard-reload navigation
+    // reads location.search to build the post-reload URL — without
+    // this, switching language on steps 3-5 reloaded to step 1 (or
+    // wherever the URL was last stamped, e.g. the OAuth callback's
+    // ?step=2). Browser back/forward also works for free now.
+    // Preserve sibling params like ?locationId=… that may already be
+    // on the URL from the OAuth callback.
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('step', String(n))
+    router.replace(`/onboarding?${params.toString()}`, { scroll: false })
     window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
+  }, [router, searchParams])
 
   // Analysis loading effect (after Google connect)
   useEffect(() => {
