@@ -7,13 +7,32 @@
 import { useEffect, useState } from 'react'
 import { LANG_COOKIE, type Lang, type Translation, getTranslation, parseLang } from '@/lib/i18n'
 
+const LANG_CHANGE_EVENT = 'autoplier:lang-change'
+
+function readLangCookie(): Lang {
+  if (typeof document === 'undefined') return 'en'
+  const match = document.cookie.match(/(?:^|;\s*)autoplier_lang=([^;]+)/)
+  return parseLang(match?.[1])
+}
+
 export function useTranslation(): { t: Translation; lang: Lang } {
   const [lang, setLang] = useState<Lang>('en')
 
   useEffect(() => {
-    if (typeof document === 'undefined') return
-    const match = document.cookie.match(/(?:^|;\s*)autoplier_lang=([^;]+)/)
-    setLang(parseLang(match?.[1]))
+    // Sync local state to cookie on mount, and again whenever setLanguage
+    // fires the lang-change event. Without this, the client lang state is
+    // pinned to its mount value while the cookie + RSC have moved on, so
+    // the toggle's `if (next === lang) return` guard reads stale state and
+    // refuses to switch back. Also listen to storage so multi-tab edits
+    // stay in sync.
+    const read = () => setLang(readLangCookie())
+    read()
+    window.addEventListener(LANG_CHANGE_EVENT, read)
+    window.addEventListener('storage', read)
+    return () => {
+      window.removeEventListener(LANG_CHANGE_EVENT, read)
+      window.removeEventListener('storage', read)
+    }
   }, [])
 
   return { t: getTranslation(lang), lang }
@@ -26,9 +45,10 @@ type SoftRouter = { refresh: () => void }
 // Soft language switch:
 //   1. Add .lang-switching to <html> — globals.css fades main > *:not(footer)
 //      to opacity 0 over FADE_MS.
-//   2. After the fade-out, write the cookie and call router.refresh() so the
-//      RSC tree (which reads autoplier_lang via next/headers cookies()) is
-//      re-fetched with the new language.
+//   2. After the fade-out, write the cookie, dispatch the lang-change event
+//      so client subscribers (Footer, anyone using useTranslation) re-read,
+//      and call router.refresh() so the RSC tree (which reads
+//      autoplier_lang via next/headers cookies()) re-renders.
 //   3. Remove .lang-switching one frame after the refresh kicks off so the
 //      new HTML has had a chance to swap in before opacity returns to 1.
 //
@@ -46,6 +66,7 @@ export function setLanguage(next: Lang, router: SoftRouter): void {
 
   window.setTimeout(() => {
     document.cookie = `${LANG_COOKIE}=${next}; Path=/; Max-Age=${oneYear}; SameSite=Lax`
+    window.dispatchEvent(new CustomEvent(LANG_CHANGE_EVENT, { detail: next }))
     router.refresh()
     requestAnimationFrame(() => {
       html.classList.remove('lang-switching')
