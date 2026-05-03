@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { LogoFull } from '@/components/LogoFull'
 import { Footer } from '@/components/Footer'
+import { ScrollFadeEdges } from '@/components/ScrollFadeEdges'
 import { getServerTranslation } from '@/lib/i18n-server'
 import styles from './landing.module.css'
 
@@ -13,6 +14,7 @@ export default async function LandingPage() {
 
   return (
     <main className={styles.page}>
+      <ScrollFadeEdges />
       {/* Logo */}
       <header className={styles.logoWrap}>
         <LogoFull className={styles.logoImg} />

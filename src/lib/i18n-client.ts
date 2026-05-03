@@ -39,6 +39,7 @@ export function useTranslation(): { t: Translation; lang: Lang } {
 }
 
 const FADE_MS = 150
+export const SCROLL_RESTORE_KEY = 'scroll_restore'
 
 type SoftRouter = { refresh: () => void }
 
@@ -62,6 +63,17 @@ export function setLanguage(next: Lang, router: SoftRouter): void {
   const oneYear = 60 * 60 * 24 * 365
   const html = document.documentElement
 
+  // Preserve scroll across the swap. Saved to sessionStorage so a hard
+  // reload (if it ever happens) can restore via the Footer's effect, and
+  // applied directly in this same call so the soft refresh path stays
+  // pinned to the same scroll position even if RSC reflow nudges layout.
+  const savedY = window.scrollY
+  try {
+    sessionStorage.setItem(SCROLL_RESTORE_KEY, String(savedY))
+  } catch {
+    // sessionStorage can throw in private browsing; fall through.
+  }
+
   html.classList.add('lang-switching')
 
   window.setTimeout(() => {
@@ -69,6 +81,7 @@ export function setLanguage(next: Lang, router: SoftRouter): void {
     window.dispatchEvent(new CustomEvent(LANG_CHANGE_EVENT, { detail: next }))
     router.refresh()
     requestAnimationFrame(() => {
+      window.scrollTo(0, savedY)
       html.classList.remove('lang-switching')
     })
   }, FADE_MS)

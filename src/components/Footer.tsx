@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { setLanguage, useTranslation } from '@/lib/i18n-client'
+import { SCROLL_RESTORE_KEY, setLanguage, useTranslation } from '@/lib/i18n-client'
 import type { Lang } from '@/lib/i18n'
 import styles from './footer.module.css'
 
@@ -19,6 +20,23 @@ import styles from './footer.module.css'
 export function Footer() {
   const { t, lang } = useTranslation()
   const router = useRouter()
+
+  // Restore scroll after a language switch. Covers the hard-reload path
+  // (sessionStorage seeded by setLanguage). The same-tab soft-refresh
+  // path is also covered inside setLanguage itself, so this effect is
+  // a belt-and-suspenders fallback.
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(SCROLL_RESTORE_KEY)
+      if (saved !== null) {
+        sessionStorage.removeItem(SCROLL_RESTORE_KEY)
+        const y = parseInt(saved, 10)
+        if (!Number.isNaN(y)) window.scrollTo(0, y)
+      }
+    } catch {
+      // private browsing / disabled storage — ignore.
+    }
+  }, [])
 
   function pick(next: Lang) {
     if (next === lang) return
