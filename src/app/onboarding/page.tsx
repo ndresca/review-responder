@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { LogoFull } from '@/components/LogoFull'
 import { Footer } from '@/components/Footer'
-import { ONBOARDING_STEP_RESTORE_KEY, useTranslation } from '@/lib/i18n-client'
+import { useTranslation } from '@/lib/i18n-client'
 import type { Translation } from '@/lib/i18n'
 import styles from './onboarding.module.css'
 
@@ -93,48 +93,22 @@ function OnboardingContent() {
   })()
   const [currentStep, setCurrentStep] = useState(initialStep)
 
-  // Re-sync currentStep at mount. Two-stage:
-  //   1. Read ?step=N from searchParams. Onboarding is statically
-  //      prerendered (no force-dynamic), so during the static build
-  //      pass the Suspense fallback runs with empty searchParams and
-  //      useState(initialStep) latches in 1. On hydration the real
-  //      ?step=N resolves but useState is one-shot, so without a
-  //      re-sync the user lands on step 1 even though the URL says
-  //      step 2.
-  //   2. Fallback: read onboarding_step_restore from sessionStorage,
-  //      seeded by setLanguage right before the language reload. This
-  //      survives even if the URL search ever drops the ?step= param
-  //      across the navigation (belt-and-suspenders for the production
-  //      bug Andres has been hitting).
-  // Either way, only runs at mount — afterward goToStep /
-  // handleStepXContinue own the state. The sessionStorage key is
-  // always cleared at the end so a stale entry can't override a fresh
-  // navigation later.
+  // Re-sync currentStep from searchParams once they've populated.
+  // Onboarding is statically prerendered (no force-dynamic), so during
+  // the static build pass the Suspense fallback runs with empty
+  // searchParams and useState(initialStep) latches in 1. On hydration
+  // the real ?step=N resolves but useState is one-shot, so without
+  // this effect the user lands on step 1 even though the URL says
+  // step 2. Only runs at mount — afterward goToStep / handleStepXContinue
+  // own the state, and letting this re-fire on every searchParams
+  // change would fight them.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const raw = searchParams.get('step')
-    if (raw) {
-      const n = parseInt(raw, 10)
-      if (Number.isFinite(n) && n >= 1 && n <= TOTAL_STEPS && n !== currentStep) {
-        setCurrentStep(n)
-      }
-    } else {
-      try {
-        const stored = sessionStorage.getItem(ONBOARDING_STEP_RESTORE_KEY)
-        if (stored) {
-          const n = parseInt(stored, 10)
-          if (Number.isFinite(n) && n >= 1 && n <= TOTAL_STEPS) {
-            setCurrentStep(n)
-          }
-        }
-      } catch {
-        // private browsing — ignore.
-      }
-    }
-    try {
-      sessionStorage.removeItem(ONBOARDING_STEP_RESTORE_KEY)
-    } catch {
-      // ignore.
+    if (!raw) return
+    const n = parseInt(raw, 10)
+    if (Number.isFinite(n) && n >= 1 && n <= TOTAL_STEPS && n !== currentStep) {
+      setCurrentStep(n)
     }
   }, [])
 
