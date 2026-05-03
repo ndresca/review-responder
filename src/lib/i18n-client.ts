@@ -10,6 +10,10 @@ import { LANG_COOKIE, type Lang, type Translation, getTranslation, parseLang } f
 
 export const SCROLL_RESTORE_KEY = 'scroll_restore'
 export const LANG_RESTORE_PATH_KEY = 'lang_restore_path'
+export const SCROLL_ANCHOR_ID_KEY = 'scroll_anchor_id'
+export const SCROLL_ANCHOR_OFFSET_KEY = 'scroll_anchor_offset'
+export const SCROLL_RATIO_KEY = 'scroll_ratio'
+export const ONBOARDING_STEP_RESTORE_KEY = 'onboarding_step_restore'
 
 function readLangCookie(): Lang {
   if (typeof document === 'undefined') return 'en'
@@ -35,33 +39,80 @@ export function useTranslation(): { t: Translation; lang: Lang } {
 }
 
 // Hard-navigation language switch:
-//   1. Snapshot scrollY into sessionStorage so the post-reload Footer
-//      effect can restore it.
-//   2. Write the autoplier_lang cookie.
-//   3. Reload via window.location.href = pathname + search. The browser
-//      issues a fresh request, the server reads the new cookie via
-//      next/headers cookies(), and every component remounts cleanly.
-// Visual flash is masked by the landing page's fade-in wrapper.
+//   1. Anchor-snapshot the topmost visible DOM element so we can re-find
+//      it after the page rebuilds in the new language. Pixel scrollY
+//      values aren't portable across languages — Spanish wraps to more
+//      lines than English, so the saved Y lands on different content.
+//      We also write a scroll_ratio fallback for when no anchor is in
+//      view (e.g. fixed-position-only pages).
+//   2. If we're inside /onboarding, snapshot the current ?step= so it
+//      can be restored from sessionStorage in case the URL ever loses
+//      the param across the reload (belt-and-suspenders for the
+//      static-prerender + Suspense issue).
+//   3. Write the autoplier_lang cookie synchronously.
+//   4. Reload via window.location.href = pathname + search + hash. The
+//      browser issues a fresh request, the server reads the new cookie
+//      via next/headers cookies(), and every component remounts cleanly.
+// Visual flash is masked by the global body fade-in in globals.css.
 export function setLanguage(next: Lang): void {
   if (typeof document === 'undefined') return
   const oneYear = 60 * 60 * 24 * 365
 
-  // Snapshot scroll position AND the full URL we're currently on. The path
-  // record is purely diagnostic — if a future redirect ever stomps the
-  // user away from where they were (e.g. middleware reading the new
-  // cookie and rewriting), we can detect the drift on the post-reload
-  // mount. The navigation itself uses window.location.{pathname,search,
-  // hash} so query params (e.g. /onboarding?step=2) and fragments stay
-  // intact across the cookie-write reload.
   const fullPath =
     window.location.pathname + window.location.search + window.location.hash
+
   try {
+    // Pixel scroll snapshot — kept as a last-resort fallback only.
     sessionStorage.setItem(SCROLL_RESTORE_KEY, String(window.scrollY))
     sessionStorage.setItem(LANG_RESTORE_PATH_KEY, fullPath)
+
+    // Anchor snapshot. Pick the topmost element in the viewport that
+    // either carries data-i18n-anchor (preferred, opted-in by the page)
+    // or has a stable id. We pin its current viewport-top offset so the
+    // restorer can compute target = anchorY - savedOffset, putting that
+    // element back at the same relative position regardless of how the
+    // ES copy reflows above it.
+    const candidates = Array.from(
+      document.querySelectorAll('[data-i18n-anchor], [id]'),
+    ) as HTMLElement[]
+    let bestAnchor: HTMLElement | null = null
+    let bestTop = Infinity
+    for (const el of candidates) {
+      const rect = el.getBoundingClientRect()
+      if (rect.top >= 0 && rect.top < bestTop) {
+        bestTop = rect.top
+        bestAnchor = el
+      }
+    }
+    if (bestAnchor) {
+      const id = bestAnchor.getAttribute('data-i18n-anchor') || bestAnchor.id
+      sessionStorage.setItem(SCROLL_ANCHOR_ID_KEY, id)
+      sessionStorage.setItem(SCROLL_ANCHOR_OFFSET_KEY, String(bestTop))
+    } else {
+      const ratio =
+        window.scrollY /
+        Math.max(1, document.documentElement.scrollHeight - window.innerHeight)
+      sessionStorage.setItem(SCROLL_RATIO_KEY, String(ratio))
+    }
+
+    // Onboarding step fallback. If for any reason the URL search loses
+    // ?step=N across the reload, the page can recover the step from
+    // sessionStorage. Path check is intentionally permissive
+    // (startsWith) so /onboarding/<anything> is covered too.
+    if (window.location.pathname.startsWith('/onboarding')) {
+      const params = new URLSearchParams(window.location.search)
+      const step = params.get('step')
+      if (step) sessionStorage.setItem(ONBOARDING_STEP_RESTORE_KEY, step)
+    }
   } catch {
     // sessionStorage can throw in private browsing; fall through.
   }
 
   document.cookie = `${LANG_COOKIE}=${next}; Path=/; Max-Age=${oneYear}; SameSite=Lax`
+
+  // Diagnostic log — Andres will check the production console to verify
+  // the URL being navigated to. Removed in a follow-up PR once verified.
+  // eslint-disable-next-line no-console
+  console.log('[lang-switch] target URL:', fullPath)
   window.location.href = fullPath
 }

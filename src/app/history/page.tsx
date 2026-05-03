@@ -115,7 +115,7 @@ export default function HistoryPage() {
         </Link>
       </header>
 
-      <h1 className={styles.title}>{t.histTitle}</h1>
+      <h1 className={styles.title} data-i18n-anchor="history-title">{t.histTitle}</h1>
       <p className={styles.refreshLabel}>{t.histRefreshLabel}</p>
 
       {loading && (
