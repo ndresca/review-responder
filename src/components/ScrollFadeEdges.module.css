@@ -1,0 +1,36 @@
+/* Soft top + bottom edge fades for the landing page. Both layers are
+   fixed-position, pointer-events:none so they never intercept clicks,
+   and aria-hidden so they don't appear in the a11y tree. Gradient uses
+   var(--bg) so the effect matches both light and dark themes. */
+
+.fade {
+  position: fixed;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 300ms ease;
+  z-index: 5;
+}
+
+.top {
+  top: 0;
+  height: 60px;
+  background: linear-gradient(to bottom, var(--bg) 0%, transparent 100%);
+}
+
+.bottom {
+  bottom: 0;
+  height: 80px;
+  background: linear-gradient(to top, var(--bg) 0%, transparent 100%);
+}
+
+.visible {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade {
+    transition: none;
+  }
+}
