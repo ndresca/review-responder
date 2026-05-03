@@ -13,7 +13,7 @@ export default async function LandingPage() {
   const { t } = await getServerTranslation()
 
   return (
-    <main className={`${styles.page} ${styles.fadeIn}`}>
+    <main className={styles.page}>
       <ScrollFadeEdges />
       {/* Logo */}
       <header className={styles.logoWrap}>

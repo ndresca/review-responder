@@ -48,5 +48,21 @@ body {
   font-size: 15px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  animation: page-fade-in 200ms ease forwards;
+}
+
+/* Mask the white flash of full-page navigations (notably the language
+   toggle's hard reload). Only fires on real page loads — Next.js
+   client-side route changes don't remount <body>, so this doesn't
+   re-run when navigating between dashboard / settings / etc. Honors
+   prefers-reduced-motion. */
+@keyframes page-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body {
+    animation: none;
+  }
 }
 

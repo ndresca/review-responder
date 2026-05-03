@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import { LANG_COOKIE, type Lang, type Translation, getTranslation, parseLang } from '@/lib/i18n'
 
 export const SCROLL_RESTORE_KEY = 'scroll_restore'
+export const LANG_RESTORE_PATH_KEY = 'lang_restore_path'
 
 function readLangCookie(): Lang {
   if (typeof document === 'undefined') return 'en'
@@ -45,12 +46,22 @@ export function setLanguage(next: Lang): void {
   if (typeof document === 'undefined') return
   const oneYear = 60 * 60 * 24 * 365
 
+  // Snapshot scroll position AND the full URL we're currently on. The path
+  // record is purely diagnostic — if a future redirect ever stomps the
+  // user away from where they were (e.g. middleware reading the new
+  // cookie and rewriting), we can detect the drift on the post-reload
+  // mount. The navigation itself uses window.location.{pathname,search,
+  // hash} so query params (e.g. /onboarding?step=2) and fragments stay
+  // intact across the cookie-write reload.
+  const fullPath =
+    window.location.pathname + window.location.search + window.location.hash
   try {
     sessionStorage.setItem(SCROLL_RESTORE_KEY, String(window.scrollY))
+    sessionStorage.setItem(LANG_RESTORE_PATH_KEY, fullPath)
   } catch {
     // sessionStorage can throw in private browsing; fall through.
   }
 
   document.cookie = `${LANG_COOKIE}=${next}; Path=/; Max-Age=${oneYear}; SameSite=Lax`
-  window.location.href = window.location.pathname + window.location.search
+  window.location.href = fullPath
 }

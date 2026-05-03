@@ -4,22 +4,6 @@
   padding: 0 24px 64px;
 }
 
-/* On every mount (including the post-language-switch hard reload), fade
-   the page in over 200ms. Masks the white flash of window.location.href
-   navigation and makes the language switch feel intentional. Honors
-   prefers-reduced-motion. */
-.fadeIn {
-  animation: landing-fade-in 200ms ease forwards;
-}
-@keyframes landing-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .fadeIn {
-    animation: none;
-  }
-}
 
 /* ── Logo ──────────────────────────────────────────────────────────── */
 .logoWrap {
