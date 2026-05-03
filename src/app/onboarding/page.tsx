@@ -93,6 +93,55 @@ function OnboardingContent() {
   })()
   const [currentStep, setCurrentStep] = useState(initialStep)
 
+  // Rehydrate step 2 fields from /api/settings/load on mount. Covers
+  // three flows:
+  //   - User filled step 2, advanced to step 3, hit back → DB has the
+  //     values they entered (handleStep2Continue best-effort POSTs to
+  //     /api/settings/save before navigating).
+  //   - User refreshed mid-onboarding → DB has whatever was last saved.
+  //   - Brand-new user → load returns null brandVoice, fields stay
+  //     empty, the analysis-finish branch later seeds defaults.
+  // The hasHydrated ref guards against the request resolving after the
+  // user has already started typing, which would otherwise clobber
+  // their edits with stale DB values. brandVoice (long description)
+  // isn't yet persisted by /api/settings/save — that's a separate
+  // latent issue tracked outside this PR.
+  const hasHydratedRef = useRef(false)
+  useEffect(() => {
+    if (hasHydratedRef.current) return
+    let cancelled = false
+    fetch('/api/settings/load')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data || hasHydratedRef.current) return
+        hasHydratedRef.current = true
+        if (typeof data.restaurantName === 'string' && data.restaurantName) {
+          setRestaurantName(data.restaurantName)
+        }
+        if (data.brandVoice) {
+          if (typeof data.brandVoice.personality === 'string') {
+            setPersonality(data.brandVoice.personality)
+          }
+          if (typeof data.brandVoice.avoid === 'string') {
+            setAvoid(data.brandVoice.avoid)
+          }
+          if (typeof data.brandVoice.language === 'string') {
+            setLanguage(data.brandVoice.language)
+          }
+          if (typeof data.brandVoice.autoDetectLanguage === 'boolean') {
+            setAutoLang(data.brandVoice.autoDetectLanguage)
+          }
+        }
+      })
+      .catch(() => {
+        // Network/auth failure is non-fatal — onboarding can still proceed
+        // with empty fields. We'll log so it's visible but silent to user.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   // Re-sync currentStep from searchParams once they've populated.
   // Onboarding is statically prerendered (no force-dynamic), so during
   // the static build pass the Suspense fallback runs with empty
@@ -367,10 +416,37 @@ function OnboardingContent() {
 
   function validateStep2(): boolean {
     const errors: Record<string, string> = {}
-    if (!restaurantName.trim()) errors.restaurantName = t.onbStep2FieldRequiredError
-    if (!brandVoice.trim()) errors.brandVoice = t.onbStep2FieldRequiredError
+    if (!restaurantName.trim()) errors.restaurantName = t.onbStep2ErrorRestaurantName
+    if (!brandVoice.trim()) errors.brandVoice = t.onbStep2ErrorBrandVoice
     setValidationErrors(errors)
-    return Object.keys(errors).length === 0
+    if (Object.keys(errors).length === 0) return true
+
+    // Scroll the first invalid field into the middle of the viewport and
+    // focus its input so the user lands on the thing they need to fix.
+    // Order matches the visual order of fields on the page. preventScroll
+    // on focus avoids competing with the smooth scrollIntoView animation.
+    const fieldOrder: Array<'restaurantName' | 'brandVoice'> = [
+      'restaurantName',
+      'brandVoice',
+    ]
+    const fieldInputId: Record<string, string> = {
+      restaurantName: 'restaurant-name',
+      brandVoice: 'brand-voice',
+    }
+    const firstInvalid = fieldOrder.find((f) => errors[f])
+    if (firstInvalid) {
+      const wrapper = document.getElementById(`field-${firstInvalid}`)
+      if (wrapper) {
+        wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+      const input = document.getElementById(
+        fieldInputId[firstInvalid],
+      ) as HTMLElement | null
+      if (input) {
+        setTimeout(() => input.focus({ preventScroll: true }), 300)
+      }
+    }
+    return false
   }
 
   async function handleStep2Continue() {
@@ -752,7 +828,7 @@ function OnboardingContent() {
           <p className={styles.stepSub}>{t.onbStep2Sub}</p>
 
           {/* Required fields */}
-          <div className={styles.field}>
+          <div className={styles.field} id="field-restaurantName">
             <label className={styles.fieldLabel} htmlFor="restaurant-name">
               {t.onbStep2RestaurantLabel} <span className={styles.fieldRequired}>{t.onbStep2FieldRequired}</span>
             </label>
@@ -770,7 +846,7 @@ function OnboardingContent() {
             )}
           </div>
 
-          <div className={styles.field}>
+          <div className={styles.field} id="field-brandVoice">
             <label className={styles.fieldLabel} htmlFor="brand-voice">
               {t.onbStep2VoiceLabel} <span className={styles.fieldRequired}>{t.onbStep2FieldRequired}</span>
             </label>

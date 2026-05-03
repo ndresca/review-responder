@@ -149,6 +149,8 @@ export type Translation = {
   onbStep2FieldRequired: string
   onbStep2FieldOptional: string
   onbStep2FieldRequiredError: string
+  onbStep2ErrorRestaurantName: string
+  onbStep2ErrorBrandVoice: string
 
   onbStep3Sub: string
   onbStep3Bold: string
@@ -496,6 +498,8 @@ export const EN: Translation = {
   onbStep2FieldRequired: 'required',
   onbStep2FieldOptional: 'optional',
   onbStep2FieldRequiredError: 'This field is required.',
+  onbStep2ErrorRestaurantName: 'Please enter your restaurant name.',
+  onbStep2ErrorBrandVoice: 'Please describe your brand voice.',
 
   onbStep3Sub: 'We generated sample responses based on your real reviews.',
   onbStep3Bold: 'Accept at least 3 to continue.',
@@ -506,7 +510,7 @@ export const EN: Translation = {
   onbStep3LooksGood: 'Looks good',
   onbStep3NotQuite: 'Not quite',
   onbStep3Edit: 'Edit',
-  onbStep3EditLabel: 'Edit the AI response — your version is what gets saved.',
+  onbStep3EditLabel: 'Edit the AI response: your version is what gets saved.',
   onbStep3FeedbackLabel: "What didn't feel right? The more you tell us, the better we'll match your voice.",
   onbStep3FeedbackPlaceholder: 'Optional — skip if you prefer',
   onbStep3SubmitFeedback: 'Submit feedback',
@@ -846,6 +850,8 @@ export const ES: Translation = {
   onbStep2FieldRequired: '',
   onbStep2FieldOptional: '',
   onbStep2FieldRequiredError: 'Este campo es requerido.',
+  onbStep2ErrorRestaurantName: 'Por favor ingresa el nombre de tu restaurante.',
+  onbStep2ErrorBrandVoice: 'Por favor describe el tono de tu marca.',
 
   onbStep3Sub: 'Generamos respuestas de muestra basadas en tus reseñas reales.',
   onbStep3Bold: 'Acepta al menos 3 para continuar.',
@@ -856,7 +862,7 @@ export const ES: Translation = {
   onbStep3LooksGood: 'Me gusta',
   onbStep3NotQuite: 'No del todo',
   onbStep3Edit: 'Editar',
-  onbStep3EditLabel: 'Edita la respuesta de la IA — tu versión es la que se guarda.',
+  onbStep3EditLabel: 'Edita la respuesta de la IA: tu versión es la que se guarda.',
   onbStep3FeedbackLabel: 'Qué no te convenció? Mientras más nos cuentes, mejor te sonamos.',
   onbStep3FeedbackPlaceholder: 'Opcional — déjalo en blanco si prefieres',
   onbStep3SubmitFeedback: 'Enviar comentarios',
