@@ -8,6 +8,53 @@
   flex-direction: column;
 }
 
+/* ── Trial banner ───────────────────────────────────────────────────── */
+/* Shown when the user has no active/trialing Stripe subscription. Mirrors
+   the settings paused-banner shape (low-alpha tint + matching border)
+   but uses the amber accent instead of error red — informational, not
+   alarming. The CTA link sits inline so the banner stays a single row
+   on desktop and wraps on mobile. */
+.trialBannerSlot {
+  margin-top: 16px;
+}
+
+.trialBanner {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text);
+  background: rgba(181, 118, 10, 0.10);
+  border: 1px solid rgba(181, 118, 10, 0.28);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  text-align: center;
+}
+
+.trialBannerCta {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 6px;
+  color: var(--accent);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .trialBannerCta:hover {
+    opacity: 0.85;
+  }
+}
+
+.trialBannerCta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 /* ── Status hero ────────────────────────────────────────────────────── */
 .statusHero {
   padding: 72px 0 48px;

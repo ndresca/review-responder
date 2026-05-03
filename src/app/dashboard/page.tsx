@@ -20,12 +20,18 @@ type RecentResponse = {
   postedAt: string | null
 }
 
+type SubscriptionState = {
+  status: string
+  trialEndsAt: string | null
+}
+
 type DashboardData = {
   locationId: string | null
   locationName: string | null
   autoPostEnabled: boolean
   weeklyPostedCount: number
   recentResponses: RecentResponse[]
+  subscription: SubscriptionState | null
 }
 
 function timeAgo(iso: string | null, t: Translation, lang: 'en' | 'es'): string {
@@ -78,7 +84,13 @@ export default function DashboardPage() {
         if (cancelled) return
 
         if (res.status === 401) {
-          router.push('/onboarding')
+          // Edge middleware accepted the cookie because it's present; the
+          // API route validated the JWT and rejected it as expired or
+          // invalid. Hand off to /api/auth/refresh which trades the
+          // long-lived autoplier_refresh cookie for a fresh sb-* JWT and
+          // bounces back to /dashboard. If refresh itself fails, that
+          // route redirects to /onboarding for re-OAuth.
+          router.push('/api/auth/refresh?next=/dashboard')
           return
         }
         if (!res.ok) {
@@ -182,6 +194,8 @@ export default function DashboardPage() {
   }
 
   const active = data.autoPostEnabled
+  const subStatus = data.subscription?.status
+  const showTrialBanner = subStatus !== 'active' && subStatus !== 'trialing'
 
   return (
     <main className={styles.page}>
@@ -190,6 +204,27 @@ export default function DashboardPage() {
         <LogoFull className={styles.logoImg} />
         <Link href="/settings" className={styles.settingsLink}>{t.dashSettingsLink}</Link>
       </header>
+
+      {/* Trial banner — shown for users with no active/trialing Stripe
+          subscription (e.g. reached /dashboard via Skip-for-now on step 5,
+          or trial expired without payment). Routes back to step 5 to add
+          a payment method. Stacks above the auto-post status — adding
+          payment is more urgent than the auto-post toggle since it gates
+          the whole feature post-trial. */}
+      {showTrialBanner && (
+        <div className={styles.trialBannerSlot}>
+          <div className={styles.trialBanner}>
+            {t.dashTrialBannerText}
+            <button
+              type="button"
+              className={styles.trialBannerCta}
+              onClick={() => router.push('/onboarding?step=5')}
+            >
+              {t.dashTrialBannerCta}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Status hero */}
       <section className={styles.statusHero} aria-label="Automation status" data-i18n-anchor="dashboard-status">
