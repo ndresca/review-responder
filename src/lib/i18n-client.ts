@@ -13,7 +13,6 @@ export const LANG_RESTORE_PATH_KEY = 'lang_restore_path'
 export const SCROLL_ANCHOR_ID_KEY = 'scroll_anchor_id'
 export const SCROLL_ANCHOR_OFFSET_KEY = 'scroll_anchor_offset'
 export const SCROLL_RATIO_KEY = 'scroll_ratio'
-export const ONBOARDING_STEP_RESTORE_KEY = 'onboarding_step_restore'
 
 function readLangCookie(): Lang {
   if (typeof document === 'undefined') return 'en'
@@ -45,12 +44,8 @@ export function useTranslation(): { t: Translation; lang: Lang } {
 //      lines than English, so the saved Y lands on different content.
 //      We also write a scroll_ratio fallback for when no anchor is in
 //      view (e.g. fixed-position-only pages).
-//   2. If we're inside /onboarding, snapshot the current ?step= so it
-//      can be restored from sessionStorage in case the URL ever loses
-//      the param across the reload (belt-and-suspenders for the
-//      static-prerender + Suspense issue).
-//   3. Write the autoplier_lang cookie synchronously.
-//   4. Reload via window.location.href = pathname + search + hash. The
+//   2. Write the autoplier_lang cookie synchronously.
+//   3. Reload via window.location.href = pathname + search + hash. The
 //      browser issues a fresh request, the server reads the new cookie
 //      via next/headers cookies(), and every component remounts cleanly.
 // Visual flash is masked by the global body fade-in in globals.css.
@@ -94,25 +89,10 @@ export function setLanguage(next: Lang): void {
         Math.max(1, document.documentElement.scrollHeight - window.innerHeight)
       sessionStorage.setItem(SCROLL_RATIO_KEY, String(ratio))
     }
-
-    // Onboarding step fallback. If for any reason the URL search loses
-    // ?step=N across the reload, the page can recover the step from
-    // sessionStorage. Path check is intentionally permissive
-    // (startsWith) so /onboarding/<anything> is covered too.
-    if (window.location.pathname.startsWith('/onboarding')) {
-      const params = new URLSearchParams(window.location.search)
-      const step = params.get('step')
-      if (step) sessionStorage.setItem(ONBOARDING_STEP_RESTORE_KEY, step)
-    }
   } catch {
     // sessionStorage can throw in private browsing; fall through.
   }
 
   document.cookie = `${LANG_COOKIE}=${next}; Path=/; Max-Age=${oneYear}; SameSite=Lax`
-
-  // Diagnostic log — Andres will check the production console to verify
-  // the URL being navigated to. Removed in a follow-up PR once verified.
-  // eslint-disable-next-line no-console
-  console.log('[lang-switch] target URL:', fullPath)
   window.location.href = fullPath
 }
