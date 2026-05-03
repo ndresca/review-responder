@@ -21,19 +21,43 @@ export function Footer() {
 
   // Restore scroll after a language-switch hard-reload. setLanguage seeds
   // SCROLL_RESTORE_KEY before reloading; this effect runs on the fresh
-  // mount and pins the page back to the same scroll position. behavior
-  // is 'instant' (the default) — never animate this, the user shouldn't
-  // perceive a scroll, just be where they were.
+  // mount and pins the page back to the same scroll position.
+  //
+  // Timing matters: scrollTo only works if the document has its full
+  // post-load height. Firing on naive useEffect mount races with font
+  // loading (Fraunces + Instrument Sans + DM Mono — non-trivial layout
+  // shift when they swap in) and image decoding. Wait for
+  // document.fonts.ready (resolves once all CSS-declared fonts are
+  // loaded), then a requestAnimationFrame so the layout commits, THEN
+  // scroll. behavior: 'instant' so the user perceives no animation —
+  // they just land where they were.
   useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem(SCROLL_RESTORE_KEY)
-      if (saved !== null) {
-        sessionStorage.removeItem(SCROLL_RESTORE_KEY)
-        const y = parseInt(saved, 10)
-        if (!Number.isNaN(y)) window.scrollTo({ top: y, behavior: 'instant' })
+    let cancelled = false
+    const restore = () => {
+      if (cancelled) return
+      try {
+        const saved = sessionStorage.getItem(SCROLL_RESTORE_KEY)
+        if (saved !== null) {
+          sessionStorage.removeItem(SCROLL_RESTORE_KEY)
+          const y = parseInt(saved, 10)
+          if (!Number.isNaN(y)) window.scrollTo({ top: y, behavior: 'instant' })
+        }
+      } catch {
+        // private browsing / disabled storage — ignore.
       }
-    } catch {
-      // private browsing / disabled storage — ignore.
+    }
+
+    const fontsReady =
+      typeof document !== 'undefined' && 'fonts' in document
+        ? document.fonts.ready
+        : Promise.resolve()
+
+    fontsReady.then(() => {
+      requestAnimationFrame(restore)
+    })
+
+    return () => {
+      cancelled = true
     }
   }, [])
 

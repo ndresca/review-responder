@@ -93,6 +93,24 @@ function OnboardingContent() {
   })()
   const [currentStep, setCurrentStep] = useState(initialStep)
 
+  // Re-sync currentStep from searchParams once they've populated. Onboarding
+  // is statically prerendered (no force-dynamic), so during the static
+  // build pass the Suspense fallback runs with empty searchParams and
+  // useState(initialStep) latches in 1. On hydration the real ?step=N
+  // resolves but useState is one-shot, so without this effect the user
+  // lands on step 1 even though the URL says step 2. Only runs at mount
+  // — afterward goToStep / handleStepXContinue own the state, and
+  // letting this re-fire on every searchParams change would fight them.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const raw = searchParams.get('step')
+    if (!raw) return
+    const n = parseInt(raw, 10)
+    if (Number.isFinite(n) && n >= 1 && n <= TOTAL_STEPS && n !== currentStep) {
+      setCurrentStep(n)
+    }
+  }, [])
+
   // Analysis loading (after Google connect, before step 2)
   const [analysisLoading, setAnalysisLoading] = useState(false)
   const [analysisProgress, setAnalysisProgress] = useState(0)
