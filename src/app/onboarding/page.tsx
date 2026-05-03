@@ -115,10 +115,22 @@ function OnboardingContent() {
       .then((data) => {
         if (cancelled || !data || hasHydratedRef.current) return
         hasHydratedRef.current = true
+        // Diagnostic log so production console reveals whether the
+        // load returned the keys the rehydrate effect actually reads.
+        // Removed in a follow-up PR once Andres confirms the fix lands.
+        // eslint-disable-next-line no-console
+        console.log('[onboarding-rehydrate]', {
+          hasLocation: !!data?.restaurantName,
+          hasBrandVoice: !!data?.brandVoice,
+          brandVoiceKeys: data?.brandVoice ? Object.keys(data.brandVoice) : null,
+        })
         if (typeof data.restaurantName === 'string' && data.restaurantName) {
           setRestaurantName(data.restaurantName)
         }
         if (data.brandVoice) {
+          if (typeof data.brandVoice.ownerDescription === 'string' && data.brandVoice.ownerDescription) {
+            setBrandVoice(data.brandVoice.ownerDescription)
+          }
           if (typeof data.brandVoice.personality === 'string') {
             setPersonality(data.brandVoice.personality)
           }
@@ -452,24 +464,36 @@ function OnboardingContent() {
   async function handleStep2Continue() {
     if (!validateStep2()) return
 
-    // Persist the language picker + auto-detect toggle so the calibration
-    // POST and the auto-post pipeline both pick them up from brand_voices.
-    // Best-effort: a failure here is non-fatal — the user can still proceed
-    // with the defaults set by the OAuth callback (language='en',
-    // auto_detect_language=false), and edit them later in settings.
+    // Persist EVERYTHING the user typed so the rehydrate effect on next
+    // mount (language hard-reload, refresh, back-nav after unmount) can
+    // restore the same fields. Previously this only sent personality /
+    // avoid / language / autoDetectLanguage — restaurantName was silently
+    // dropped by the route and brandVoice (long description) wasn't sent
+    // at all. Both of those are now persisted: restaurantName updates
+    // locations.name, brandVoice goes to brand_voices.owner_description.
+    //
+    // Awaited explicitly. If save fails we log and continue — calibration
+    // POST in step 3 doesn't depend on these fields hitting the DB
+    // synchronously, but the user-visible navigation should not race the
+    // network request itself.
     if (locationId) {
       try {
-        await fetch('/api/settings/save', {
+        const saveRes = await fetch('/api/settings/save', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             locationId,
+            restaurantName,
+            ownerDescription: brandVoice,
             personality,
             avoid,
             language,
             autoDetectLanguage: autoLang,
           }),
         })
+        if (!saveRes.ok) {
+          console.error('[onboarding] step 2 save failed', saveRes.status)
+        }
       } catch (err) {
         console.error('handleStep2Continue: settings/save threw (continuing):', err)
       }

@@ -13,6 +13,11 @@ function buildServiceSupabase() {
 type SaveBody = {
   locationId?: string
   restaurantName?: string
+  // Long-form brand voice description shown as the textarea on
+  // onboarding step 2 + settings → "Voz de marca". Persisted to
+  // brand_voices.owner_description so back-nav and the language
+  // hard-reload can rehydrate it.
+  ownerDescription?: string
   personality?: string
   avoid?: string
   language?: string
@@ -31,6 +36,7 @@ type SaveBody = {
 // response if it doesn't.
 const MAX_LENGTHS = {
   restaurantName: 200,
+  ownerDescription: 2000,
   personality: 1000,
   avoid: 500,
 } as const
@@ -38,6 +44,9 @@ const MAX_LENGTHS = {
 function validateLengths(body: SaveBody): NextResponse | null {
   if (typeof body.restaurantName === 'string' && body.restaurantName.length > MAX_LENGTHS.restaurantName) {
     return NextResponse.json({ error: `restaurantName must be ${MAX_LENGTHS.restaurantName} characters or fewer` }, { status: 400 })
+  }
+  if (typeof body.ownerDescription === 'string' && body.ownerDescription.length > MAX_LENGTHS.ownerDescription) {
+    return NextResponse.json({ error: `ownerDescription must be ${MAX_LENGTHS.ownerDescription} characters or fewer` }, { status: 400 })
   }
   if (typeof body.personality === 'string' && body.personality.length > MAX_LENGTHS.personality) {
     return NextResponse.json({ error: `personality must be ${MAX_LENGTHS.personality} characters or fewer` }, { status: 400 })
@@ -66,8 +75,9 @@ export async function POST(request: Request): Promise<NextResponse> {
   const lengthError = validateLengths(body)
   if (lengthError) return lengthError
 
-  const { locationId, personality, avoid, language, autoDetectLanguage,
-          frequency, digestDay, digestTime, timezone } = body
+  const { locationId, restaurantName, ownerDescription, personality, avoid,
+          language, autoDetectLanguage, frequency, digestDay, digestTime,
+          timezone } = body
 
   if (!locationId) return NextResponse.json({ error: 'locationId is required' }, { status: 400 })
 
@@ -85,8 +95,26 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  // ── locations.name (UPDATE) ─────────────────────────────────────────────
+  // Owners edit the display name from settings + during onboarding step 2.
+  // Was previously declared in SaveBody and length-validated but silently
+  // dropped on the way to the DB — this is the actual cause of "step 2
+  // restaurant name lost on language switch": the hard reload re-reads
+  // from DB, which still held the OAuth-callback default.
+  if (typeof restaurantName === 'string' && restaurantName.trim().length > 0) {
+    const { error: locUpdateErr } = await supabase
+      .from('locations')
+      .update({ name: restaurantName.trim() })
+      .eq('id', locationId)
+    if (locUpdateErr) {
+      console.error('save: locations.name update failed:', locUpdateErr.message)
+      return NextResponse.json({ error: 'Failed to save restaurant name' }, { status: 500 })
+    }
+  }
+
   // ── brand_voices (UPDATE — row already exists from onboarding) ──────────
   const bvUpdate: Record<string, unknown> = {}
+  if (typeof ownerDescription === 'string') bvUpdate.owner_description = ownerDescription
   if (typeof personality === 'string') bvUpdate.personality = personality
   if (typeof avoid === 'string') bvUpdate.avoid = avoid
   if (typeof language === 'string') bvUpdate.language = language
