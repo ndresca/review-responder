@@ -50,19 +50,3 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Language-toggle fade. Direct children of <main> fade to 0 while the
-   <html> carries .lang-switching, then fade back in once the class is
-   removed. The Footer renders <footer> as a direct child of main, so
-   it's explicitly excluded — the toggle stays visible during the
-   transition. Honors prefers-reduced-motion. */
-main > *:not(footer) {
-  transition: opacity 150ms ease;
-}
-html.lang-switching main > *:not(footer) {
-  opacity: 0;
-}
-@media (prefers-reduced-motion: reduce) {
-  main > *:not(footer) {
-    transition: none;
-  }
-}
