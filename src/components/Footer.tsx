@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { SCROLL_RESTORE_KEY, setLanguage, useTranslation } from '@/lib/i18n-client'
 import type { Lang } from '@/lib/i18n'
 import styles from './footer.module.css'
@@ -10,7 +9,7 @@ import styles from './footer.module.css'
 // Shared site footer. Two rows:
 //   1. Language switch (English · Español) — discrete, near-black at ~40% /
 //      ~80% opacity for inactive / active. No borders, no background.
-//   2. Brand line — "Autoplier · contact@autoplier.com · Privacy".
+//   2. Brand line — "Autoplier · contact@autoplier.com · Privacy · Terms".
 //
 // Client component on purpose: useTranslation reads the cookie via
 // document.cookie + useEffect. Brief flash to default language is
@@ -19,19 +18,19 @@ import styles from './footer.module.css'
 
 export function Footer() {
   const { t, lang } = useTranslation()
-  const router = useRouter()
 
-  // Restore scroll after a language switch. Covers the hard-reload path
-  // (sessionStorage seeded by setLanguage). The same-tab soft-refresh
-  // path is also covered inside setLanguage itself, so this effect is
-  // a belt-and-suspenders fallback.
+  // Restore scroll after a language-switch hard-reload. setLanguage seeds
+  // SCROLL_RESTORE_KEY before reloading; this effect runs on the fresh
+  // mount and pins the page back to the same scroll position. behavior
+  // is 'instant' (the default) — never animate this, the user shouldn't
+  // perceive a scroll, just be where they were.
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem(SCROLL_RESTORE_KEY)
       if (saved !== null) {
         sessionStorage.removeItem(SCROLL_RESTORE_KEY)
         const y = parseInt(saved, 10)
-        if (!Number.isNaN(y)) window.scrollTo(0, y)
+        if (!Number.isNaN(y)) window.scrollTo({ top: y, behavior: 'instant' })
       }
     } catch {
       // private browsing / disabled storage — ignore.
@@ -40,7 +39,7 @@ export function Footer() {
 
   function pick(next: Lang) {
     if (next === lang) return
-    setLanguage(next, router)
+    setLanguage(next)
   }
 
   return (
