@@ -45,10 +45,12 @@ export async function GET(): Promise<NextResponse> {
   const locationId = location.id as string
   const sevenDaysAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
-  // 2/3/4. Brand voice (auto_post_enabled), weekly count, last 5 posted
-  // responses — in parallel. responses_posted has no created_at; posted_at
-  // is the only timestamp on the row, null until status='posted'.
-  const [bvResult, weeklyResult, recentResult] = await Promise.all([
+  // 2/3/4/5. Brand voice (auto_post_enabled), weekly count, last 5 posted
+  // responses, subscription state — in parallel. responses_posted has no
+  // created_at; posted_at is the only timestamp on the row, null until
+  // status='posted'. subscriptions row is null when the user reached
+  // /dashboard via the skip-Stripe path or before completing checkout.
+  const [bvResult, weeklyResult, recentResult, subResult] = await Promise.all([
     supabase
       .from('brand_voices')
       .select('auto_post_enabled')
@@ -67,11 +69,17 @@ export async function GET(): Promise<NextResponse> {
       .eq('status', 'posted')
       .order('posted_at', { ascending: false, nullsFirst: false })
       .limit(5),
+    supabase
+      .from('subscriptions')
+      .select('status, current_period_end')
+      .eq('location_id', locationId)
+      .maybeSingle(),
   ])
 
   if (bvResult.error) console.warn('dashboard/load: brand_voices read failed:', bvResult.error.message)
   if (weeklyResult.error) console.warn('dashboard/load: weekly count failed:', weeklyResult.error.message)
   if (recentResult.error) console.warn('dashboard/load: recent responses read failed:', recentResult.error.message)
+  if (subResult.error) console.warn('dashboard/load: subscriptions read failed:', subResult.error.message)
 
   const autoPostEnabled = (bvResult.data?.auto_post_enabled as boolean) ?? false
   const weeklyPostedCount = weeklyResult.count ?? 0
@@ -129,5 +137,11 @@ export async function GET(): Promise<NextResponse> {
     autoPostEnabled,
     weeklyPostedCount,
     recentResponses,
+    subscription: subResult.data
+      ? {
+          status: subResult.data.status as string,
+          trialEndsAt: (subResult.data.current_period_end as string | null) ?? null,
+        }
+      : null,
   })
 }

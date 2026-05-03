@@ -205,6 +205,8 @@ export type Translation = {
   dashLoadError: string
   dashNetworkError: string
   dashWeeklySent: Counter
+  dashTrialBannerText: string
+  dashTrialBannerCta: string
 
   timeJustNow: string
   timeYesterday: string
@@ -554,6 +556,8 @@ export const EN: Translation = {
   dashLoadError: "We couldn't load your dashboard. Try refreshing.",
   dashNetworkError: 'Network error — check your connection and try again.',
   dashWeeklySent: (n) => `${n} ${n === 1 ? 'response' : 'responses'} sent this week`,
+  dashTrialBannerText: 'Trial mode: add payment to keep auto-posting active after your trial ends.',
+  dashTrialBannerCta: 'Add payment',
 
   timeJustNow: 'Just now',
   timeYesterday: 'Yesterday',
@@ -906,6 +910,8 @@ export const ES: Translation = {
   dashLoadError: 'No pudimos cargar tu panel. Intenta recargar la página.',
   dashNetworkError: 'Error de red — revisa tu conexión e intenta de nuevo.',
   dashWeeklySent: (n) => `${n} ${n === 1 ? 'respuesta enviada' : 'respuestas enviadas'} esta semana`,
+  dashTrialBannerText: 'Modo prueba: agrega un método de pago para mantener las respuestas automáticas activas al terminar la prueba.',
+  dashTrialBannerCta: 'Agregar pago',
 
   timeJustNow: 'Ahora mismo',
   timeYesterday: 'Ayer',

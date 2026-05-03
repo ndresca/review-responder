@@ -162,6 +162,15 @@ function SettingsContent() {
         const res = await fetch('/api/settings/load')
         if (cancelled) return
 
+        if (res.status === 401) {
+          // Same expired-JWT recovery as /dashboard and /history. Refresh
+          // route mints a fresh sb-* JWT from autoplier_refresh and
+          // bounces back here, or sends to /onboarding if both tokens
+          // are gone.
+          router.push('/api/auth/refresh?next=/settings')
+          return
+        }
+
         if (!res.ok) {
           const body = await res.text().catch(() => '')
           console.error(`GET /api/settings/load failed: HTTP ${res.status}`, body)

@@ -76,7 +76,11 @@ export default function HistoryPage() {
         if (cancelled) return
 
         if (res.status === 401) {
-          router.push('/onboarding')
+          // Hand off to /api/auth/refresh — same expired-JWT recovery
+          // path used by /dashboard. Refresh route bounces back here on
+          // success, or to /onboarding if the refresh token has also
+          // expired or been revoked.
+          router.push('/api/auth/refresh?next=/history')
           return
         }
         if (!res.ok) {
