@@ -21,7 +21,7 @@ export default async function LandingPage() {
       </header>
 
       {/* Hero */}
-      <section className={styles.hero} aria-label="Hero">
+      <section className={styles.hero} aria-label="Hero" data-i18n-anchor="hero">
         <h1 className={styles.heroHeadline}>{t.landingHeroHeadline}</h1>
         <p className={styles.heroSub}>{t.landingHeroSub}</p>
         <Link href="/onboarding" className={styles.btnCta}>
@@ -33,7 +33,7 @@ export default async function LandingPage() {
       <div className={styles.sectionDivider} role="separator" />
 
       {/* How it works */}
-      <section className={styles.stepsSection} aria-label="How it works">
+      <section className={styles.stepsSection} aria-label="How it works" data-i18n-anchor="how-it-works">
         <h2 className={styles.sectionTitle}>{t.landingStepsTitle}</h2>
 
         <div className={styles.stepItem}>
@@ -64,7 +64,7 @@ export default async function LandingPage() {
       <div className={styles.sectionDivider} role="separator" />
 
       {/* Social proof */}
-      <section className={styles.testimonials} aria-label="Testimonials">
+      <section className={styles.testimonials} aria-label="Testimonials" data-i18n-anchor="social-proof">
         <article className={styles.testimonial}>
           <div className={styles.testimonialStars} aria-label="5 stars">★★★★★</div>
           <p className={styles.testimonialQuote}>{t.landingTestimonial1Quote}</p>
@@ -87,7 +87,7 @@ export default async function LandingPage() {
       <div className={styles.sectionDivider} role="separator" />
 
       {/* Pricing */}
-      <section aria-label="Pricing">
+      <section aria-label="Pricing" data-i18n-anchor="pricing-card">
         <div className={styles.pricingCard}>
           <p className={styles.pricingAmount}>{t.landingPricingAmount}</p>
           <p className={styles.pricingSub}>{t.landingPricingSub}</p>

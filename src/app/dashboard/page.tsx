@@ -192,7 +192,7 @@ export default function DashboardPage() {
       </header>
 
       {/* Status hero */}
-      <section className={styles.statusHero} aria-label="Automation status">
+      <section className={styles.statusHero} aria-label="Automation status" data-i18n-anchor="dashboard-status">
         <div className={styles.statusRow} role="status" aria-live="polite">
           <span
             className={styles.statusDot}
@@ -219,7 +219,7 @@ export default function DashboardPage() {
       </section>
 
       {/* Activity feed */}
-      <section className={styles.feed} aria-label={t.dashRecentResponses}>
+      <section className={styles.feed} aria-label={t.dashRecentResponses} data-i18n-anchor="dashboard-feed">
         <div className={styles.feedLabel} aria-hidden="true">{t.dashRecentResponses}</div>
 
         {data.recentResponses.length === 0 ? (

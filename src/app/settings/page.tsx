@@ -487,7 +487,7 @@ function SettingsContent() {
       {!loading && (
         <>
       {/* Section 1: Your location */}
-      <section className={`${styles.settingsSection} ${styles.firstSection}`} aria-label={t.setSectionLocation}>
+      <section className={`${styles.settingsSection} ${styles.firstSection}`} aria-label={t.setSectionLocation} data-i18n-anchor="settings-location">
         <h2 className={styles.sectionLabel}>{t.setSectionLocation}</h2>
 
         <div className={styles.field}>
@@ -539,7 +539,7 @@ function SettingsContent() {
       </section>
 
       {/* Section 2: Brand voice — fully inline-editable, no modal */}
-      <section className={styles.settingsSection} aria-label={t.setSectionVoice}>
+      <section className={styles.settingsSection} aria-label={t.setSectionVoice} data-i18n-anchor="settings-voice">
         <h2 className={styles.sectionLabel}>{t.setSectionVoice}</h2>
 
         <div className={styles.field}>
@@ -597,7 +597,7 @@ function SettingsContent() {
       </section>
 
       {/* Section 3: Notifications */}
-      <section className={styles.settingsSection} aria-label={t.setSectionNotifications}>
+      <section className={styles.settingsSection} aria-label={t.setSectionNotifications} data-i18n-anchor="settings-notifications">
         <h2 className={styles.sectionLabel}>{t.setSectionNotifications}</h2>
 
         <div className={styles.toggleRow}>
@@ -649,7 +649,7 @@ function SettingsContent() {
       </section>
 
       {/* Section 4: Danger zone */}
-      <section className={styles.settingsSection} aria-label={t.setSectionDanger}>
+      <section className={styles.settingsSection} aria-label={t.setSectionDanger} data-i18n-anchor="settings-danger">
         <h2 className={styles.dangerLabel}>{t.setSectionDanger}</h2>
 
         <div className={styles.dangerRow}>
