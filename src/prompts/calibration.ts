@@ -134,6 +134,12 @@ RESTAURANT VOICE
 ${formatVoice(brandVoice)}
 ${formatExistingResponses(existingResponses)}
 
+GUIDELINES FOR THE REVIEW
+─────────────────────────
+- Length: 1-3 sentences, 30-150 characters.
+- Tone: real customer voice — quick mobile review style, not a polished essay.
+- Specifics: include at least one concrete detail (a dish, a moment, a wait time) so the response has something to reference.
+
 GUIDELINES FOR THE RESPONSE
 ────────────────────────────
 - Match the voice described above exactly. If the owner writes casually, write casually.
