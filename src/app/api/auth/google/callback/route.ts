@@ -477,5 +477,12 @@ export async function GET(request: Request): Promise<NextResponse> {
     path: '/api/auth/google',
   })
 
+  // eslint-disable-next-line no-console
+  console.log('[BUG_B_DIAGNOSTIC] callback cookies set', {
+    timestamp: new Date().toISOString(),
+    cookiesBeingSet: response.cookies.getAll().map(c => c.name),
+    redirectingTo: redirectUrl.toString(),
+  })
+
   return response
 }
