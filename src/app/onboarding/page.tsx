@@ -319,8 +319,13 @@ function OnboardingContent() {
     let cancelled = false
     let msgIdx = 0
     setLoadingMsg(LOADING_MESSAGES[0])
+    // Cycle only through messages 0, 1, 2 (the working messages). The final
+    // message is reserved as a one-second close-out beat shown once
+    // generation actually succeeds — without this, the % length wrap caused
+    // the final message to roll back to message 0 at 10s, which read to
+    // users as a failed retry restart.
     const msgInterval = setInterval(() => {
-      msgIdx = (msgIdx + 1) % LOADING_MESSAGES.length
+      msgIdx = (msgIdx + 1) % (LOADING_MESSAGES.length - 1)
       setLoadingMsg(LOADING_MESSAGES[msgIdx])
     }, 2500)
 
@@ -382,6 +387,13 @@ function OnboardingContent() {
         setRejections({})
         setCardLoading(new Set())
         setCalibError(null)
+        // Close-out beat: stop the cycling interval, swap to the final message
+        // for ~1s, then dismiss. Without clearInterval the next tick would
+        // overwrite "Almost ready..." with the wrap-around cycle.
+        clearInterval(msgInterval)
+        setLoadingMsg(LOADING_MESSAGES[LOADING_MESSAGES.length - 1])
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        if (cancelled) return
         setCalibLoading(false)
         setCalibReady(true)
       } catch (err) {
