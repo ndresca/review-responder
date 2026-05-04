@@ -63,6 +63,15 @@ export async function mintSupabaseSession(
     .setProtectedHeader({ alg: 'HS256' })
     .sign(secret)
 
+  // eslint-disable-next-line no-console
+  console.log('[BUG_B_DIAGNOSTIC] mintSupabaseSession start', {
+    timestamp: new Date().toISOString(),
+  })
+
+  // Capture cookie names written via the setAll callback so we can log
+  // exactly what the SDK stamped onto the response.
+  const cookiesSet: string[] = []
+
   // Write sb-* cookies onto the outgoing response. setSession internally
   // calls our setAll with the sb-<project-ref>-auth-token cookies.
   const sbClient = createServerClient(supabaseUrl, supabaseAnonKey, {
@@ -70,6 +79,7 @@ export async function mintSupabaseSession(
       getAll() { return cookieStore.getAll() },
       setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
         for (const c of cookiesToSet) {
+          cookiesSet.push(c.name)
           response.cookies.set(c.name, c.value, c.options)
         }
       },
@@ -85,11 +95,23 @@ export async function mintSupabaseSession(
     refresh_token: accessToken,
   })
   if (sessionError) {
+    console.error('[BUG_B_DIAGNOSTIC] mintSupabaseSession done', {
+      timestamp: new Date().toISOString(),
+      success: false,
+      cookiesSet,
+      error: sessionError.message,
+    })
     // Throw so the OAuth callback's try/catch at route.ts:428-431 surfaces
     // reason=config to the user instead of silently proceeding with no
     // auth cookies (which would 401 every subsequent request).
     throw new Error(`setSession failed: ${sessionError.message}`)
   }
+  // eslint-disable-next-line no-console
+  console.log('[BUG_B_DIAGNOSTIC] mintSupabaseSession done', {
+    timestamp: new Date().toISOString(),
+    success: true,
+    cookiesSet,
+  })
 }
 
 /**
