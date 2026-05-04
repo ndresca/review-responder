@@ -76,7 +76,9 @@ export async function mintSupabaseSession(
     },
   })
 
-  await sbClient.auth.setSession({
+  // eslint-disable-next-line no-console
+  console.log('[mint-session] starting', { ownerId })
+  const { error: sessionError } = await sbClient.auth.setSession({
     access_token: accessToken,
     // refresh_token here is a Supabase concept (used by the SDK to silently
     // refresh on expiry). Our refresh flow lives at /api/auth/refresh and
@@ -84,6 +86,21 @@ export async function mintSupabaseSession(
     // happy even though we never actually rely on it for refresh.
     refresh_token: accessToken,
   })
+  if (sessionError) {
+    console.error('[mint-session] setSession returned error:', {
+      ownerId,
+      error: sessionError.message,
+      code: (sessionError as { code?: string }).code ?? null,
+      status: (sessionError as { status?: number }).status ?? null,
+    })
+    // Throwing so the OAuth callback's existing try/catch at line 428-431
+    // catches it and surfaces reason=config to the user instead of silently
+    // proceeding with no auth cookies. Removed in the cleanup PR once the
+    // root cause is identified.
+    throw new Error(`setSession failed: ${sessionError.message}`)
+  }
+  // eslint-disable-next-line no-console
+  console.log('[mint-session] setSession succeeded', { ownerId })
 }
 
 /**

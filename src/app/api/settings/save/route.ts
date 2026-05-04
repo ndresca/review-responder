@@ -62,7 +62,15 @@ export async function POST(request: Request): Promise<NextResponse> {
   // value is a UUID AND that the user still exists in auth.users.
   const cookieStore = await cookies()
   const session = await getValidSession(cookieStore)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session) {
+    const all = cookieStore.getAll()
+    console.error('[settings/save] unauthenticated', {
+      hasSbAuthCookie: all.some(c => c.name.startsWith('sb-') && c.name.endsWith('-auth-token')),
+      hasRefreshCookie: !!cookieStore.get('autoplier_refresh')?.value,
+      cookieNames: all.map(c => c.name),
+    })
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   const ownerId = session.ownerId
 
   let body: SaveBody
