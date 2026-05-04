@@ -115,15 +115,6 @@ function OnboardingContent() {
       .then((data) => {
         if (cancelled || !data || hasHydratedRef.current) return
         hasHydratedRef.current = true
-        // Diagnostic log so production console reveals whether the
-        // load returned the keys the rehydrate effect actually reads.
-        // Removed in a follow-up PR once Andres confirms the fix lands.
-        // eslint-disable-next-line no-console
-        console.log('[onboarding-rehydrate]', {
-          hasLocation: !!data?.restaurantName,
-          hasBrandVoice: !!data?.brandVoice,
-          brandVoiceKeys: data?.brandVoice ? Object.keys(data.brandVoice) : null,
-        })
         if (typeof data.restaurantName === 'string' && data.restaurantName) {
           setRestaurantName(data.restaurantName)
         }

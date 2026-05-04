@@ -102,6 +102,20 @@ Three (now four) layers shield the AI from attacker-authored Google reviews:
 
 Both auto-post (`src/services/auto-post.ts`) and calibration (POST + PATCH paths in `src/app/api/onboarding/calibrate/route.ts`) flow through shared `fetchAndFilterReviews` + `validateGeneratedExample` helpers.
 
+## Database migrations
+
+Migrations under `supabase/migrations/` are NOT applied automatically — there is no migration deploy step in the current Vercel pipeline. Each new migration must be pasted into the production Supabase SQL Editor by hand after the PR merges.
+
+Skipping this step fails silently: code that depends on the new schema deploys successfully, then 500s or redirects opaquely the first time a user hits it. **Real example:** PR #43 (v0.2.0.0) shipped `0001_session_tokens.sql`, the migration was never applied to prod, and OAuth callbacks redirected to the generic `Server configuration error` page for every new sign-in until the table was created manually. The error chain: `mintSupabaseSession` succeeded but `issueRefreshToken` threw on the missing `session_tokens` insert → caught at `route.ts:430` → `redirectError('config')` → users blocked from onboarding entirely.
+
+**Until automated migration deploy lands, every PR that touches `supabase/migrations/` must include a checkbox in the description:**
+
+```
+- [ ] If this PR adds a file to supabase/migrations/, the migration has been applied to production Supabase via SQL Editor.
+```
+
+Verify by tail-checking: `select * from <new_table> limit 0` in the SQL Editor against the production project should succeed (returns 0 rows, no error) before the deploy is considered complete.
+
 ## Design System
 Always read DESIGN.md before making any visual or UI decisions.
 All font choices, colors, spacing, and aesthetic direction are defined there.
