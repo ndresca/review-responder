@@ -252,6 +252,15 @@ export async function GET(request: Request): Promise<NextResponse> {
   const redirectUri = process.env.GOOGLE_REDIRECT_URI
 
   if (!clientId || !clientSecret || !redirectUri) {
+    console.error('OAuth callback config check failed:', {
+      hasClientId: !!clientId,
+      hasClientSecret: !!clientSecret,
+      hasRedirectUri: !!redirectUri,
+      clientIdLen: clientId?.length ?? 0,
+      clientSecretLen: clientSecret?.length ?? 0,
+      redirectUriLen: redirectUri?.length ?? 0,
+      redirectUriValue: redirectUri ?? '<undefined>',
+    })
     return redirectError('config')
   }
 
