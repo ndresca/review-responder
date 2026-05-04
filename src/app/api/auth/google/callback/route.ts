@@ -397,8 +397,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   // above), firstLocationId stays null. Without this, the redirect URL
   // omits ?locationId, the onboarding page mounts with a falsy locationId,
   // handleStep2Continue's `if (locationId)` guard silently skips the save,
-  // and the user's step 2 typing never persists. Confirmed in production
-  // via the [step2-save] guard failed: locationId is falsy diagnostic log.
+  // and the user's step 2 typing never persists across hard reloads.
   //
   // The stub is keyed on a synthetic google_location_id ("pending:${ownerId}")
   // so the schema's NOT NULL UNIQUE constraint is satisfied, the row is
