@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
-import type { BrandVoice, CalibrationExample, Review } from '@/lib/types'
+import type { BrandVoice, Review } from '@/lib/types'
 
 // ─── Test fixtures ──────────────────────────────────────────────────────────
 

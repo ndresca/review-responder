@@ -243,7 +243,6 @@ function OnboardingContent() {
   const [calibLoading, setCalibLoading] = useState(false)
   const [calibReady, setCalibReady] = useState(false)
   const [calibError, setCalibError] = useState<string | null>(null)
-  const [calibSessionId, setCalibSessionId] = useState<string | null>(null)
   const [loadingMsg, setLoadingMsg] = useState('')
 
   // Digest
@@ -397,7 +396,6 @@ function OnboardingContent() {
           }
           newMeta[ex.id] = metaForScenario(ex.scenario_type)
         }
-        setCalibSessionId(data.sessionId)
         setCardOrder(newOrder)
         setCardState(newState)
         setCardMeta(newMeta)

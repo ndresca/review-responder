@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js'
-// TODO: confirm Resend is installed — run: npm install resend
 import { Resend } from 'resend'
 
 // ─── Config ──────────────────────────────────────────────────────────────────

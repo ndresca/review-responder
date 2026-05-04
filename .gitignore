@@ -7,6 +7,10 @@
 .next/
 out/
 
+# typescript incremental build cache (regenerated on every tsc/build,
+# checked-in noise we want to ignore — see PR chore/pre-launch-tech-cleanup)
+tsconfig.tsbuildinfo
+
 # deps
 node_modules/
 
