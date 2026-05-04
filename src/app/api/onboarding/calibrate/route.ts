@@ -9,7 +9,7 @@ import { checkOutputAllowlist } from '@/lib/output-allowlist'
 import { classifyReviewSafety } from '@/lib/review-safety'
 import { buildCalibrationPrompt } from '@/prompts/calibration'
 import { sanitizeForPrompt } from '@/lib/sanitize'
-import type { BrandVoice, CalibrationExample, ExistingResponse, ScenarioType } from '@/lib/types'
+import type { BrandVoice, CalibrationExample, ContactChannel, ExistingResponse, ScenarioType } from '@/lib/types'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -350,7 +350,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   // Load brand voice
   const { data: bvRow, error: bvErr } = await supabase
     .from('brand_voices')
-    .select('personality, avoid, signature_phrases, language, auto_detect_language, owner_description')
+    .select('personality, avoid, signature_phrases, language, auto_detect_language, owner_description, contact_channels')
     .eq('location_id', locationId)
     .single()
 
@@ -363,6 +363,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     language: bvRow.language as string,
     auto_detect_language: (bvRow.auto_detect_language as boolean | null) ?? false,
     owner_description: bvRow.owner_description as string | null,
+    // PR A foundation. The prompt builder doesn't read this yet (PR C wires
+    // it into the GUIDELINES block); kept here so the type is honoured.
+    contact_channels: (bvRow.contact_channels as ContactChannel[] | null) ?? [],
   }
 
   // Resolve access token
@@ -639,7 +642,7 @@ async function regenerateExample(
   // Load brand voice
   const { data: bvRow, error: bvErr } = await supabase
     .from('brand_voices')
-    .select('personality, avoid, signature_phrases, language, auto_detect_language, owner_description')
+    .select('personality, avoid, signature_phrases, language, auto_detect_language, owner_description, contact_channels')
     .eq('location_id', locationId)
     .single()
 
@@ -652,6 +655,7 @@ async function regenerateExample(
     language: bvRow.language as string,
     auto_detect_language: (bvRow.auto_detect_language as boolean | null) ?? false,
     owner_description: bvRow.owner_description as string | null,
+    contact_channels: (bvRow.contact_channels as ContactChannel[] | null) ?? [],
   }
 
   // Resolve access token (refreshes if expiring)

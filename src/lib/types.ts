@@ -8,6 +8,20 @@ export type ScenarioType =
   | 'complaint_wait'
   | 'multilingual'
 
+// Owner-allowlisted contact channels the AI may reference in review replies.
+// `kind` is intentionally NOT modeled — owners choose any channel type
+// (Instagram handle, WhatsApp number, TikTok URL, future platforms) without
+// being forced through an enum. The eventual validator tokenizes against
+// `value`; the prompt surfaces `label` + `when_to_use` as guidance. `id`
+// gives the UI stable React keys and lets future code reference a specific
+// channel by uuid.
+export type ContactChannel = {
+  id: string             // uuid v4
+  label: string          // owner-typed display name, e.g. "WhatsApp Business"
+  value: string          // literal string the AI may insert, e.g. "+1-555-…"
+  when_to_use: string    // owner-authored natural-language guidance
+}
+
 export type BrandVoice = {
   personality: string           // e.g. "warm, local, slightly cheeky"
   avoid: string                 // e.g. "never say 'we take your feedback seriously'"
@@ -17,6 +31,7 @@ export type BrandVoice = {
   // responds in that language. When false, all responses use `language`.
   auto_detect_language: boolean
   owner_description: string | null  // free-text from onboarding
+  contact_channels: ContactChannel[]  // PR A foundation; nothing reads this yet
 }
 
 export type Review = {
