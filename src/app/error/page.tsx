@@ -25,7 +25,7 @@ type ErrorVariant = {
   showSupportFallback: boolean
 }
 
-const SUPPORT_MAILTO = 'mailto:contact@autoplier.com'
+const SUPPORT_MAILTO = 'mailto:contact@landofiguanas.com'
 
 function buildVariants(t: Translation): { variants: Record<string, ErrorVariant>; unknown: ErrorVariant } {
   const tryAgainGoogle: ActionKind = { kind: 'try-again', href: '/onboarding', label: t.errTryAgain }

@@ -16,7 +16,7 @@ import styles from './footer.module.css'
 // Shared site footer. Two rows:
 //   1. Language switch (English · Español) — discrete, near-black at ~40% /
 //      ~80% opacity for inactive / active. No borders, no background.
-//   2. Brand line — "Autoplier · contact@autoplier.com · Privacy · Terms".
+//   2. Brand line — "Autoplier · contact@landofiguanas.com · Privacy · Terms".
 //
 // Client component on purpose: useTranslation reads the cookie via
 // document.cookie + useEffect. Brief flash to default language is
@@ -134,7 +134,7 @@ export function Footer() {
       </div>
 
       <div className={styles.brandLine}>
-        Autoplier · <a href="mailto:contact@autoplier.com">contact@autoplier.com</a> · <Link href="/privacy">{t.landingFooterPrivacy}</Link> · <Link href="/terms">{t.landingFooterTerms}</Link>
+        Autoplier · <a href="mailto:contact@landofiguanas.com">contact@landofiguanas.com</a> · <Link href="/privacy">{t.landingFooterPrivacy}</Link> · <Link href="/terms">{t.landingFooterTerms}</Link>
       </div>
     </footer>
   )

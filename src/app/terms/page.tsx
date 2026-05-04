@@ -86,8 +86,8 @@ export default async function TermsPage() {
         <h2 className={styles.heading}>{t.termsContactHeading}</h2>
         <p className={styles.body}>
           {t.termsContactBefore}
-          <a href="mailto:contact@autoplier.com" className={styles.link}>
-            contact@autoplier.com
+          <a href="mailto:contact@landofiguanas.com" className={styles.link}>
+            contact@landofiguanas.com
           </a>
           {t.termsContactAfter}
         </p>
