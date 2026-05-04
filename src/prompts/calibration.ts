@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import { sanitizeForPrompt } from '@/lib/sanitize'
 import type { BrandVoice, ExistingResponse, ScenarioType } from '@/lib/types'
+import { formatContactChannels } from './contact-channels'
 
 // Maps the brand_voices.language code to the human-readable name we
 // inject into the prompt. Keys mirror the <select> options in onboarding
@@ -121,6 +122,18 @@ export function buildCalibrationPrompt(
     `replying to a customer review. The sample review you write should ` +
     `also be in ${languageName} so the calibration is end-to-end consistent.`
 
+  // Owner-allowlisted contact channels (PR C). When the owner has configured
+  // channels with non-empty when_to_use guidance, the AI sees them as a
+  // referenceable list AND the GUIDELINES bullet flips from absolute "no
+  // URLs" to permissive "include only from the list above." When no usable
+  // channels remain (empty list, or all filtered by sanitization), the
+  // prompt keeps the strict prohibition from PR #69.
+  const contactChannelsBlock = formatContactChannels(brandVoice.contact_channels)
+  const hasUsableChannels = contactChannelsBlock !== ''
+  const contactDetailsRule = hasUsableChannels
+    ? '- Include contact details (URLs, emails, phone numbers, handles) ONLY from the CONTACT CHANNELS section above, and only when the situation matches that channel\'s "When to use" guidance. Never invent or include other contact details.'
+    : '- Do NOT include website URLs, domains, phone numbers, or web addresses. The reply text is plain conversation.'
+
   return `You are helping calibrate an AI system that automatically responds to Google reviews on behalf of a restaurant owner.
 
 Your task has two parts:
@@ -133,6 +146,7 @@ RESTAURANT VOICE
 ────────────────
 ${formatVoice(brandVoice)}
 ${formatExistingResponses(existingResponses)}
+${contactChannelsBlock}
 
 GUIDELINES FOR THE REVIEW
 ─────────────────────────
@@ -150,7 +164,7 @@ GUIDELINES FOR THE RESPONSE
 - Do NOT use the phrase "we take your feedback seriously" or any variation of it.
 - Do NOT start with "Thank you for your review" — it sounds robotic.
 - Do NOT make any factual claims about the restaurant that are not implied by the review itself.
-- Do NOT include website URLs, domains, phone numbers, or web addresses. The reply text is plain conversation.${formatOwnerFeedback(ownerFeedback)}
+${contactDetailsRule}${formatOwnerFeedback(ownerFeedback)}
 
 OUTPUT FORMAT
 ─────────────
