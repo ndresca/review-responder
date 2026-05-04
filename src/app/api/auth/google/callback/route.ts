@@ -392,6 +392,47 @@ export async function GET(request: Request): Promise<NextResponse> {
     console.warn('GBP fetch/sync skipped — API may not be approved yet:', err)
   }
 
+  // Always-create stub fallback. If GBP returned no accounts/locations, or
+  // GBP API access isn't approved yet for this Google account (the catch
+  // above), firstLocationId stays null. Without this, the redirect URL
+  // omits ?locationId, the onboarding page mounts with a falsy locationId,
+  // handleStep2Continue's `if (locationId)` guard silently skips the save,
+  // and the user's step 2 typing never persists. Confirmed in production
+  // via the [step2-save] guard failed: locationId is falsy diagnostic log.
+  //
+  // The stub is keyed on a synthetic google_location_id ("pending:${ownerId}")
+  // so the schema's NOT NULL UNIQUE constraint is satisfied, the row is
+  // idempotent across OAuth re-runs, AND a future GBP-approval sync can
+  // identify and replace pending:* stubs with real GBP resource paths.
+  if (!firstLocationId) {
+    const stubGoogleId = `pending:${ownerId}`
+    const { data: stubLocation, error: stubErr } = await supabase
+      .from('locations')
+      .upsert(
+        { owner_id: ownerId, name: '', google_location_id: stubGoogleId },
+        { onConflict: 'google_location_id' },
+      )
+      .select('id')
+      .single()
+
+    if (stubErr || !stubLocation) {
+      console.error('OAuth callback: stub location creation failed:', stubErr)
+      return redirectError('user_creation')
+    }
+    firstLocationId = stubLocation.id as string
+
+    // Reuse the existing helper so this fallback can't drift from the GBP
+    // path. Best-effort: a brand_voices INSERT failure here just means
+    // step 2's UPDATE finds no row and 500s, which is at least a visible
+    // failure mode rather than silent data loss.
+    try {
+      await ensureBrandVoice(supabase, firstLocationId)
+    } catch (err) {
+      console.error('OAuth callback: stub brand_voices creation failed:', err)
+    }
+  }
+
+
   // ── 5. Update Google profile on user metadata (covers existing users) ─────
 
   await supabase.auth.admin.updateUserById(ownerId, {
