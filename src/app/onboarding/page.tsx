@@ -453,7 +453,26 @@ function OnboardingContent() {
   }
 
   async function handleStep2Continue() {
-    if (!validateStep2()) return
+    // Diagnostic logging gates removed in a follow-up PR once Andres
+    // captures the browser console output and confirms which guard is
+    // firing in production.
+    // eslint-disable-next-line no-console
+    console.log('[step2-save] entering', {
+      hasLocationId: !!locationId,
+      locationIdValue: locationId,
+      restaurantNameLen: restaurantName.length,
+      brandVoiceLen: brandVoice.length,
+      personalityLen: personality.length,
+      avoidLen: avoid.length,
+      language,
+      autoLang,
+    })
+
+    if (!validateStep2()) {
+      // eslint-disable-next-line no-console
+      console.error('[step2-save] guard failed: validateStep2 returned false')
+      return
+    }
 
     // Persist EVERYTHING the user typed so the rehydrate effect on next
     // mount (language hard-reload, refresh, back-nav after unmount) can
@@ -469,6 +488,8 @@ function OnboardingContent() {
     // network request itself.
     if (locationId) {
       try {
+        // eslint-disable-next-line no-console
+        console.log('[step2-save] calling save')
         const saveRes = await fetch('/api/settings/save', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -482,12 +503,16 @@ function OnboardingContent() {
             autoDetectLanguage: autoLang,
           }),
         })
+        // eslint-disable-next-line no-console
+        console.log('[step2-save] save response:', saveRes.status, saveRes.ok)
         if (!saveRes.ok) {
           console.error('[onboarding] step 2 save failed', saveRes.status)
         }
       } catch (err) {
-        console.error('handleStep2Continue: settings/save threw (continuing):', err)
+        console.error('[step2-save] save error:', err)
       }
+    } else {
+      console.error('[step2-save] guard failed: locationId is falsy', { locationId })
     }
 
     goToStep(3)
