@@ -107,8 +107,13 @@ function OnboardingContent() {
   // isn't yet persisted by /api/settings/save — that's a separate
   // latent issue tracked outside this PR.
   const hasHydratedRef = useRef(false)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (hasHydratedRef.current) return
+    // Skip rehydrate for unauthenticated step 1 visitors. locationId is set by
+    // the OAuth callback redirect, so its absence indicates the user has not
+    // yet authenticated — calling /api/settings/load would 401 noise.
+    if (!locationId) return
     let cancelled = false
     fetch('/api/settings/load')
       .then((r) => (r.ok ? r.json() : null))
