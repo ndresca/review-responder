@@ -175,6 +175,7 @@ async function ensureBrandVoice(
     auto_post_enabled: false,
     calibrated_at: null,
     calibration_examples_accepted: 0,
+    contact_channels: [],    // PR A foundation; owners populate via PR D UI
   })
 
   if (error) throw new Error(`ensureBrandVoice(${locationId}): ${error.message}`)

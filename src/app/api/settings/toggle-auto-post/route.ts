@@ -20,6 +20,7 @@ const BRAND_VOICE_DEFAULTS = {
   signature_phrases: [] as string[],
   language: 'en',
   calibration_examples_accepted: 0,
+  contact_channels: [] as unknown[],
 }
 
 // Flips brand_voices.auto_post_enabled for the owner's first location.

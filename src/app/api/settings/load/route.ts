@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAuthedSupabase } from '@/lib/session'
+import type { ContactChannel } from '@/lib/types'
 
 // Returns the owner's settings shape used by the settings page on mount:
 // { locationId, restaurantName, brandVoice: {...}, notifications: {...},
@@ -57,7 +58,7 @@ export async function GET(): Promise<NextResponse> {
   const [bvResult, npResult, subResult] = await Promise.all([
     supabase
       .from('brand_voices')
-      .select('personality, avoid, language, auto_detect_language, owner_description, auto_post_enabled')
+      .select('personality, avoid, language, auto_detect_language, owner_description, auto_post_enabled, contact_channels')
       .eq('location_id', locationId)
       .maybeSingle(),
     supabase
@@ -86,6 +87,9 @@ export async function GET(): Promise<NextResponse> {
       language: (bvResult.data.language as string) ?? 'en',
       autoDetectLanguage: (bvResult.data.auto_detect_language as boolean | null) ?? false,
       ownerDescription: (bvResult.data.owner_description as string | null) ?? null,
+      // PR A foundation. PR D's settings UI will display + edit this list;
+      // until then the response surfaces the persisted value (default []).
+      contactChannels: (bvResult.data.contact_channels as ContactChannel[] | null) ?? [],
     } : null,
     notifications: npResult.data ? {
       frequency: npResult.data.digest_frequency as 'daily' | 'weekly',

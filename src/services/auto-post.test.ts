@@ -13,6 +13,7 @@ const BRAND_VOICE: BrandVoice = {
   language: 'en',
   auto_detect_language: false,
   owner_description: 'Neighbourhood Italian spot',
+  contact_channels: [],
 }
 
 const REVIEW: Review = {
