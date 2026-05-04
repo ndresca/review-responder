@@ -162,13 +162,14 @@ async function fetchAndFilterReviews(
 function validateGeneratedExample(
   aiResponse: string,
   source: ExistingResponse[],
+  allowedTokens: string[] = [],
 ): void {
   const allowlistSource: CalibrationExample[] = source.map(r => ({
     scenario_type: '5star',
     review_sample: r.review_text,
     ai_response: r.response_text,
   }))
-  const outputCheck = checkOutputAllowlist(aiResponse, allowlistSource)
+  const outputCheck = checkOutputAllowlist(aiResponse, allowlistSource, allowedTokens)
   if (!outputCheck.pass) {
     throw new Error(`validateGeneratedExample: output rejected — ${outputCheck.reason ?? 'allowlist failed'}`)
   }
@@ -410,6 +411,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   const scenarios = getCalibrationScenarios(brandVoice.language)
   const outputs: (CalibrationOutput & { scenario: ScenarioType })[] = []
 
+  // Owner-allowlisted contact channels (PR B). When the contact_channels
+  // array is empty (default for new users + anyone who hasn't configured
+  // channels yet), this is [] and the validator behaves identically to
+  // pre-PR-B — strict reject on any URL/phone/email/handle.
+  const allowedTokens = brandVoice.contact_channels.map(c => c.value)
+
   for (let i = 0; i < scenarios.length; i++) {
     const scenario = scenarios[i]
     if (i > 0) await sleep(300)
@@ -418,7 +425,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       // Layer 3 — output allowlist. validateGeneratedExample throws on
       // failure; the catch below routes that to "skip + continue" so a
       // single allowlist rejection doesn't kill the whole session.
-      validateGeneratedExample(output.ai_response, existingResponses)
+      validateGeneratedExample(output.ai_response, existingResponses, allowedTokens)
       outputs.push({ ...output, scenario })
     } catch (err) {
       console.error(`calibration: generateExample failed for scenario ${scenario}:`, err)
@@ -675,11 +682,14 @@ async function regenerateExample(
   const openai = buildOpenAI()
   const output = await generateExample(openai, brandVoice, existingResponses, scenario, ownerFeedback)
 
+  // Owner-allowlisted contact channels (PR B). Mirrors POST handler.
+  const allowedTokens = brandVoice.contact_channels.map(c => c.value)
+
   // Layer 3 — output allowlist. Throws on failure; the PATCH handler's
   // try/catch wrapper turns that into a 502 so the UI can surface a clear
   // "regen produced unexpected content" message instead of saving a
   // potentially-poisoned example.
-  validateGeneratedExample(output.ai_response, existingResponses)
+  validateGeneratedExample(output.ai_response, existingResponses, allowedTokens)
 
   // Insert as a new pending row in the same session
   const { data: inserted, error: insertErr } = await supabase
