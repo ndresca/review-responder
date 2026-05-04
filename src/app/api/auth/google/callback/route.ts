@@ -429,6 +429,17 @@ export async function GET(request: Request): Promise<NextResponse> {
     } catch (err) {
       console.error('OAuth callback: stub brand_voices creation failed:', err)
     }
+
+    // Persist Google OAuth tokens for stub-locations users (PR #58 stub pattern + calibrate fix).
+    // The user successfully OAuth'd; their tokens are valid Google credentials. Persisting here
+    // means downstream routes (calibrate, regenerateExample, auto-post cron) can resolve access
+    // tokens normally. GBP API calls will 403 until approval lands — handled by existing
+    // best-effort catches.
+    try {
+      await upsertOAuthTokens(supabase, firstLocationId, accessToken, refreshToken, expiresAt)
+    } catch (err) {
+      console.error('OAuth callback: stub oauth_tokens upsert failed:', err)
+    }
   }
 
 

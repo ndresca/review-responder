@@ -16,3 +16,11 @@ node_modules/
 
 # gstack security reports and local tooling state
 .gstack/
+
+# macOS Finder duplicate files (auto-created on accidental drag-copy)
+* [0-9].ts
+* [0-9].tsx
+* [0-9].js
+* [0-9].jsx
+* [0-9].css
+* [0-9].md
