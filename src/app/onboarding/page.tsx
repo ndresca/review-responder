@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { ContactChannelsForm } from '@/components/ContactChannelsForm'
 import { LogoFull } from '@/components/LogoFull'
 import { Footer } from '@/components/Footer'
+import { filterCompleteChannels } from '@/lib/contact-channels'
 import { useTranslation } from '@/lib/i18n-client'
 import type { Translation } from '@/lib/i18n'
 import type { ContactChannel } from '@/lib/types'
@@ -500,13 +501,10 @@ function OnboardingContent() {
     // synchronously, but the user-visible navigation should not race the
     // network request itself.
     if (locationId) {
-      // Drop incomplete rows before persisting — the form lets owners
-      // mid-edit a partially typed channel, but the server validator
-      // rejects any channel missing label / value / when_to_use, so we
-      // pre-filter here to avoid a 400 that would block step 2 → step 3.
-      const cleanChannels = contactChannels.filter(
-        (c) => c.label.trim() && c.value.trim() && c.when_to_use.trim(),
-      )
+      // Drop incomplete rows before persisting. Shared helper used by
+      // settings/page.tsx too — keeps behavior symmetrical between the
+      // two save surfaces. See src/lib/contact-channels.ts.
+      const cleanChannels = filterCompleteChannels(contactChannels)
       try {
         const saveRes = await fetch('/api/settings/save', {
           method: 'POST',

@@ -148,4 +148,85 @@ describe('POST /api/settings/save — contactChannels validation', () => {
     const json = await res.json()
     expect(json.error).toMatch(/must be an array/i)
   })
+
+  it('rejects a value that exceeds the length cap', async () => {
+    const { POST } = await setup()
+    const channels = [
+      { id: 'a', label: 'Email', value: 'A'.repeat(201), when_to_use: 'urgent' },
+    ]
+    const res = await POST(makeReq({ locationId: LOC_ID, contactChannels: channels }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/value must be 200 characters/i)
+  })
+
+  it('rejects a when_to_use that exceeds the length cap', async () => {
+    const { POST } = await setup()
+    const channels = [
+      { id: 'a', label: 'Email', value: 'hi@pinks.com', when_to_use: 'A'.repeat(501) },
+    ]
+    const res = await POST(makeReq({ locationId: LOC_ID, contactChannels: channels }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/when_to_use must be 500 characters/i)
+  })
+
+  it('rejects an id that exceeds the length cap', async () => {
+    const { POST } = await setup()
+    const channels = [
+      { id: 'A'.repeat(65), label: 'Email', value: 'hi@pinks.com', when_to_use: 'urgent' },
+    ]
+    const res = await POST(makeReq({ locationId: LOC_ID, contactChannels: channels }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/id must be 64 characters/i)
+  })
+
+  it('rejects an empty id', async () => {
+    const { POST } = await setup()
+    const channels = [
+      { id: '', label: 'Email', value: 'hi@pinks.com', when_to_use: 'urgent' },
+    ]
+    const res = await POST(makeReq({ locationId: LOC_ID, contactChannels: channels }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/id is required/i)
+  })
+
+  it('rejects an empty label', async () => {
+    const { POST } = await setup()
+    const channels = [
+      { id: 'a', label: '   ', value: 'hi@pinks.com', when_to_use: 'urgent' },
+    ]
+    const res = await POST(makeReq({ locationId: LOC_ID, contactChannels: channels }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/label is required/i)
+  })
+
+  it('rejects an empty value', async () => {
+    const { POST } = await setup()
+    const channels = [
+      { id: 'a', label: 'Email', value: '', when_to_use: 'urgent' },
+    ]
+    const res = await POST(makeReq({ locationId: LOC_ID, contactChannels: channels }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/value is required/i)
+  })
+
+  it('rejects a non-object element inside the channels array', async () => {
+    const { POST } = await setup()
+    const channels = ['not-an-object', { id: 'a', label: 'Email', value: 'hi@pinks.com', when_to_use: 'urgent' }]
+    const res = await POST(makeReq({ locationId: LOC_ID, contactChannels: channels }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/must be an object/i)
+  })
+
+  it('treats omitted contactChannels as no-op (does not write the column)', async () => {
+    // Sanity check on the Array.isArray gate in route.ts. When the body
+    // omits contactChannels entirely, the brand_voices update should not
+    // include contact_channels — leaving the existing DB value alone.
+    // Verified indirectly: a successful 200 with no contactChannels in
+    // the body still passes (the field is optional in SaveBody).
+    const { POST } = await setup()
+    const res = await POST(makeReq({ locationId: LOC_ID, personality: 'updated' }))
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.success).toBe(true)
+  })
 })

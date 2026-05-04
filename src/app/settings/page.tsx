@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ContactChannelsForm } from '@/components/ContactChannelsForm'
 import { Footer } from '@/components/Footer'
+import { filterCompleteChannels } from '@/lib/contact-channels'
 import { useTranslation } from '@/lib/i18n-client'
 import type { ContactChannel } from '@/lib/types'
 import styles from './settings.module.css'
@@ -297,13 +298,11 @@ function SettingsContent() {
       daily ? 'daily' : weekly ? 'weekly' : undefined
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 
-    // Drop incomplete rows before persisting — same pre-filter as
-    // onboarding handleStep2Continue. Server validator rejects any row
-    // missing label / value / when_to_use; pre-filtering means a partly
-    // typed channel doesn't 400 the whole save.
-    const cleanChannels = contactChannels.filter(
-      (c) => c.label.trim() && c.value.trim() && c.when_to_use.trim(),
-    )
+    // Drop incomplete rows before persisting. Same shared helper as
+    // onboarding handleStep2Continue (src/lib/contact-channels.ts) —
+    // server validator rejects any row missing label / value /
+    // when_to_use; pre-filtering avoids a 400 on a partly typed channel.
+    const cleanChannels = filterCompleteChannels(contactChannels)
 
     setSaving(true)
     try {
