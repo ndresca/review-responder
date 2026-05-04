@@ -320,11 +320,16 @@ async function processOneReview(
     return null
   }
 
-  // Post-generation: reject responses containing URLs or phone numbers that
-  // don't already appear in owner-approved calibration examples. Catches the
-  // most damaging payloads (attacker.com promo links, fake support phone
-  // numbers) even if the injection bypassed the classifier and the LLM.
-  const outputCheck = checkOutputAllowlist(draft, examples)
+  // Owner-allowlisted contact channels (PR B). Empty array for owners who
+  // haven't configured channels — validator behavior is identical to pre-PR-B.
+  const allowedTokens = brandVoice.contact_channels.map(c => c.value)
+
+  // Post-generation: reject responses containing URLs/phones/emails/handles
+  // that don't already appear in owner-approved calibration examples or in
+  // the owner's allowlisted contact channels. Catches the most damaging
+  // payloads (attacker.com promo links, fake support phone numbers, hijacked
+  // social handles) even if the injection bypassed the classifier and the LLM.
+  const outputCheck = checkOutputAllowlist(draft, examples, allowedTokens)
   if (!outputCheck.pass) {
     await storeResponse(
       locationId,
@@ -350,8 +355,9 @@ async function processOneReview(
     }
 
     // Re-check the regenerated draft against the allowlist before retrying
-    // the quality gate. Same justification as the first pass.
-    const regenOutputCheck = checkOutputAllowlist(draft, examples)
+    // the quality gate. Same justification as the first pass — including
+    // the contact-channel allowedTokens.
+    const regenOutputCheck = checkOutputAllowlist(draft, examples, allowedTokens)
     if (!regenOutputCheck.pass) {
       await storeResponse(
         locationId,
