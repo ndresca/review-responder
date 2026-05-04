@@ -368,12 +368,16 @@
   font-size: 14px;
   color: var(--muted);
   line-height: 1.5;
-  animation: textPulse 2s ease-in-out infinite;
+  animation: msgFadeIn 350ms ease-out;
 }
 
-@keyframes textPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+/* Event-driven fade-in — triggered each time the React `key` on the loader
+   <p> element changes (which happens on every loadingMsg / analysisMsg
+   swap). Replaces the prior continuous opacity-pulse loop, which drifted
+   out of phase with the message-swap rhythm and felt sharp. */
+@keyframes msgFadeIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -445,7 +449,7 @@
   font-weight: 300;
   color: var(--text);
   margin: 0;
-  animation: textPulse 2s ease-in-out infinite;
+  animation: msgFadeIn 350ms ease-out;
 }
 
 .calibPageLoadingSub {
