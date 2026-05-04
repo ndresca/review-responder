@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import { sanitizeForPrompt } from '@/lib/sanitize'
 import type { BrandVoice, CalibrationExample, Review } from '@/lib/types'
+import { formatContactChannels } from './contact-channels'
 
 // Maps the brand_voices.language code to a human-readable name. Mirrors the
 // LANGUAGE_NAMES map in calibration.ts.
@@ -86,6 +87,7 @@ export function buildGeneratePrompt(
 RESTAURANT VOICE
 ────────────────
 ${formatVoice(brandVoice)}
+${formatContactChannels(brandVoice.contact_channels)}
 
 CALIBRATION EXAMPLES (owner-approved responses — follow this style precisely)
 ──────────────────────────────────────────────────────────────────────────────
