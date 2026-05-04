@@ -318,6 +318,7 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   const supabase = buildSupabase()
   let ownerId: string
+  let supabaseUserExisted = false
 
   try {
     // Try to find existing user by email
@@ -326,6 +327,7 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     if (existingUser) {
       ownerId = existingUser.id
+      supabaseUserExisted = true
     } else {
       // Create a new user with their Google profile
       const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
@@ -462,6 +464,16 @@ export async function GET(request: Request): Promise<NextResponse> {
   // sets the autoplier_refresh cookie (30d). When the 1h JWT expires,
   // /api/auth/refresh trades the refresh cookie for a fresh JWT — no
   // re-OAuth required.
+
+  // eslint-disable-next-line no-console
+  console.log('[BUG_B_DIAGNOSTIC] pre-mint state', {
+    timestamp: new Date().toISOString(),
+    userId: ownerId,
+    hasGoogleAccessToken: !!accessToken,
+    hasGoogleRefreshToken: !!refreshToken,
+    supabaseUserExists: supabaseUserExisted,
+  })
+
   try {
     await mintSupabaseSession(ownerId, cookieStore, response)
     await issueRefreshToken(ownerId, response)
