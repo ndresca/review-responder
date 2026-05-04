@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { getValidSession } from '@/lib/session'
+import type { ContactChannel } from '@/lib/types'
 
 function buildServiceSupabase() {
   const url = process.env.SUPABASE_URL
@@ -24,6 +25,11 @@ type SaveBody = {
   // When true, the auto-post pipeline detects the review's language and
   // responds in that language. When false, all responses use `language`.
   autoDetectLanguage?: boolean
+  // Owner-allowlisted channels the AI may reference in replies. PR A
+  // shipped the schema, PR B the validator hook, PR C the prompt wiring.
+  // PR D (this PR) is the user-facing surface. Optional — empty array is
+  // valid and means "no channels configured".
+  contactChannels?: ContactChannel[]
   frequency?: 'daily' | 'weekly'
   digestDay?: number | null
   digestTime?: number
@@ -39,7 +45,67 @@ const MAX_LENGTHS = {
   ownerDescription: 2000,
   personality: 1000,
   avoid: 500,
+  // Channel field caps. id is the client-generated UUID — capped at 64 to
+  // forbid DoS-shape ids without rejecting RFC-4122 v4 (36 chars) or any
+  // future scheme. label/value/when_to_use bound prompt size: each channel
+  // contributes label + value + when_to_use to the prompt, and 5 channels
+  // at full caps total ~4KB which is comfortable inside the calibration +
+  // generate-response prompts.
+  channelId: 64,
+  channelLabel: 100,
+  channelValue: 200,
+  channelWhenToUse: 500,
 } as const
+
+const MAX_CHANNELS = 5
+
+// Returns 400 NextResponse on the first validation failure; null if the
+// channels block passes. Skips entirely when contactChannels is undefined
+// (omitted from body) — only validates when the caller is actually
+// trying to write the field.
+function validateChannels(channels: unknown): NextResponse | null {
+  if (channels === undefined) return null
+  if (!Array.isArray(channels)) {
+    return NextResponse.json({ error: 'contactChannels must be an array' }, { status: 400 })
+  }
+  if (channels.length > MAX_CHANNELS) {
+    return NextResponse.json({ error: `contactChannels: maximum ${MAX_CHANNELS} channels allowed` }, { status: 400 })
+  }
+  for (let i = 0; i < channels.length; i++) {
+    const c = channels[i] as Partial<ContactChannel> | null
+    if (!c || typeof c !== 'object') {
+      return NextResponse.json({ error: `contactChannels[${i}]: must be an object` }, { status: 400 })
+    }
+    // Each field is required and non-empty after trim. Empty rows are
+    // expected to be filtered client-side before POST; if one slips
+    // through we reject loudly so the caller can see the bug.
+    if (typeof c.id !== 'string' || c.id.trim().length === 0) {
+      return NextResponse.json({ error: `contactChannels[${i}].id is required` }, { status: 400 })
+    }
+    if (c.id.length > MAX_LENGTHS.channelId) {
+      return NextResponse.json({ error: `contactChannels[${i}].id must be ${MAX_LENGTHS.channelId} characters or fewer` }, { status: 400 })
+    }
+    if (typeof c.label !== 'string' || c.label.trim().length === 0) {
+      return NextResponse.json({ error: `contactChannels[${i}].label is required` }, { status: 400 })
+    }
+    if (c.label.length > MAX_LENGTHS.channelLabel) {
+      return NextResponse.json({ error: `contactChannels[${i}].label must be ${MAX_LENGTHS.channelLabel} characters or fewer` }, { status: 400 })
+    }
+    if (typeof c.value !== 'string' || c.value.trim().length === 0) {
+      return NextResponse.json({ error: `contactChannels[${i}].value is required` }, { status: 400 })
+    }
+    if (c.value.length > MAX_LENGTHS.channelValue) {
+      return NextResponse.json({ error: `contactChannels[${i}].value must be ${MAX_LENGTHS.channelValue} characters or fewer` }, { status: 400 })
+    }
+    if (typeof c.when_to_use !== 'string' || c.when_to_use.trim().length === 0) {
+      return NextResponse.json({ error: `contactChannels[${i}].when_to_use is required` }, { status: 400 })
+    }
+    if (c.when_to_use.length > MAX_LENGTHS.channelWhenToUse) {
+      return NextResponse.json({ error: `contactChannels[${i}].when_to_use must be ${MAX_LENGTHS.channelWhenToUse} characters or fewer` }, { status: 400 })
+    }
+  }
+  return null
+}
 
 function validateLengths(body: SaveBody): NextResponse | null {
   if (typeof body.restaurantName === 'string' && body.restaurantName.length > MAX_LENGTHS.restaurantName) {
@@ -75,9 +141,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   const lengthError = validateLengths(body)
   if (lengthError) return lengthError
 
+  const channelsError = validateChannels(body.contactChannels)
+  if (channelsError) return channelsError
+
   const { locationId, restaurantName, ownerDescription, personality, avoid,
-          language, autoDetectLanguage, frequency, digestDay, digestTime,
-          timezone } = body
+          language, autoDetectLanguage, contactChannels, frequency, digestDay,
+          digestTime, timezone } = body
 
   if (!locationId) return NextResponse.json({ error: 'locationId is required' }, { status: 400 })
 
@@ -119,6 +188,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (typeof avoid === 'string') bvUpdate.avoid = avoid
   if (typeof language === 'string') bvUpdate.language = language
   if (typeof autoDetectLanguage === 'boolean') bvUpdate.auto_detect_language = autoDetectLanguage
+  // contactChannels: only write when the caller explicitly sent the field.
+  // Sending `[]` is a valid "clear all channels" intent, distinct from
+  // omitting the field entirely (which leaves the existing row alone).
+  if (Array.isArray(contactChannels)) bvUpdate.contact_channels = contactChannels
 
   if (Object.keys(bvUpdate).length > 0) {
     const { error: bvErr } = await supabase

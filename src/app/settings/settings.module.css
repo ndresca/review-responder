@@ -131,6 +131,17 @@
   margin-bottom: 6px;
 }
 
+/* Help text under .fieldLabel — used by sections like "Contact channels"
+   that need a sentence of guidance before the input itself. Sits flush
+   under the label and above the field's input/control. */
+.fieldHelp {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+
 .textInput {
   font-family: var(--font-body);
   /* Default to 16px for iOS Safari (prevents auto-zoom on focus). The

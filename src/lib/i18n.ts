@@ -278,6 +278,20 @@ export type Translation = {
   setUnsavedSave: string
   setUnsavedDiscard: string
 
+  // ── Contact channels (PR D — onboarding step 2 + settings) ────────────
+  contactChannelsHeader: string
+  contactChannelsHeaderHelp: string
+  channelLabelHeader: string
+  channelValueHeader: string
+  channelWhenToUseHeader: string
+  channelLabelPlaceholder: string
+  channelValuePlaceholder: string
+  channelWhenToUsePlaceholder: string
+  channelAddButton: string
+  channelAddButtonAtMax: string
+  channelDeleteAria: string
+  channelsEmpty: string
+
   // ── History ────────────────────────────────────────────────────────────
   histBackToDashboard: string
   histTitle: string
@@ -631,6 +645,19 @@ export const EN: Translation = {
   setUnsavedDialog: 'You have unsaved changes. Save before leaving?',
   setUnsavedSave: 'Save',
   setUnsavedDiscard: 'Discard',
+
+  contactChannelsHeader: 'Contact channels (optional)',
+  contactChannelsHeaderHelp: "Channels the AI may reference in replies. The AI uses each one only when its 'When to use' guidance applies.",
+  channelLabelHeader: 'Label',
+  channelValueHeader: 'Value',
+  channelWhenToUseHeader: 'When to use',
+  channelLabelPlaceholder: 'WhatsApp Business',
+  channelValuePlaceholder: 'The actual email, phone, handle, or URL',
+  channelWhenToUsePlaceholder: 'For negative reviews where the customer needs follow-up',
+  channelAddButton: '+ Add channel',
+  channelAddButtonAtMax: 'Maximum 5 channels',
+  channelDeleteAria: 'Delete channel',
+  channelsEmpty: 'No contact channels configured yet.',
 
   // History
   histBackToDashboard: '← Dashboard',
@@ -988,6 +1015,19 @@ export const ES: Translation = {
   setUnsavedDialog: 'Tienes cambios sin guardar. ¿Los guardamos antes de salir?',
   setUnsavedSave: 'Guardar',
   setUnsavedDiscard: 'Descartar',
+
+  contactChannelsHeader: 'Canales de contacto (opcional)',
+  contactChannelsHeaderHelp: 'Canales que la IA puede mencionar en respuestas. Solo usa cada uno cuando aplica la guía "Cuándo usarlo".',
+  channelLabelHeader: 'Etiqueta',
+  channelValueHeader: 'Valor',
+  channelWhenToUseHeader: 'Cuándo usarlo',
+  channelLabelPlaceholder: 'WhatsApp Business',
+  channelValuePlaceholder: 'El correo, teléfono, usuario o URL real',
+  channelWhenToUsePlaceholder: 'Para reseñas negativas que necesiten seguimiento',
+  channelAddButton: '+ Agregar canal',
+  channelAddButtonAtMax: 'Máximo 5 canales',
+  channelDeleteAria: 'Eliminar canal',
+  channelsEmpty: 'Aún no hay canales de contacto configurados.',
 
   // History
   histBackToDashboard: '← Panel',
