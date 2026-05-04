@@ -122,6 +122,10 @@ export type Translation = {
   onbCalibLoading2: string
   onbCalibLoading3: string
   onbCalibLoading4: string
+  onbCalibLoading5: string
+  onbCalibLoading6: string
+  onbCalibLoading7: string
+  onbCalibLoading8: string
 
   onbStep1Headline: string
   onbStep1Sub: string
@@ -471,8 +475,12 @@ export const EN: Translation = {
 
   onbCalibLoading1: 'Reading your reviews...',
   onbCalibLoading2: 'Finding your voice...',
-  onbCalibLoading3: 'Crafting sample responses...',
-  onbCalibLoading4: 'Almost ready...',
+  onbCalibLoading3: 'Studying your past replies...',
+  onbCalibLoading4: 'Matching your tone...',
+  onbCalibLoading5: 'Polishing the language...',
+  onbCalibLoading6: 'Crafting sample responses...',
+  onbCalibLoading7: 'Drafting examples...',
+  onbCalibLoading8: 'Almost ready...',
 
   onbStep1Headline: 'Connect your Google account.',
   onbStep1Sub: "Connect your Google Business Profile to get started — we'll handle responses from there.",
@@ -822,8 +830,12 @@ export const ES: Translation = {
 
   onbCalibLoading1: 'Leyendo tus reseñas...',
   onbCalibLoading2: 'Encontrando tu voz...',
-  onbCalibLoading3: 'Armando respuestas de muestra...',
-  onbCalibLoading4: 'Casi listo...',
+  onbCalibLoading3: 'Estudiando tus respuestas anteriores...',
+  onbCalibLoading4: 'Sintonizando con tu tono...',
+  onbCalibLoading5: 'Puliendo el lenguaje...',
+  onbCalibLoading6: 'Armando respuestas de muestra...',
+  onbCalibLoading7: 'Preparando ejemplos...',
+  onbCalibLoading8: 'Casi listo...',
 
   onbStep1Headline: 'Conecta tu cuenta de Google.',
   onbStep1Sub: 'Conecta tu perfil de Google My Business para empezar; a partir de ahí, nosotros nos encargaremos de las respuestas.',

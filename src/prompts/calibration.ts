@@ -149,7 +149,8 @@ GUIDELINES FOR THE RESPONSE
 - Length: 2–4 sentences. Never a wall of text.
 - Do NOT use the phrase "we take your feedback seriously" or any variation of it.
 - Do NOT start with "Thank you for your review" — it sounds robotic.
-- Do NOT make any factual claims about the restaurant that are not implied by the review itself.${formatOwnerFeedback(ownerFeedback)}
+- Do NOT make any factual claims about the restaurant that are not implied by the review itself.
+- Do NOT include website URLs, domains, phone numbers, or web addresses. The reply text is plain conversation.${formatOwnerFeedback(ownerFeedback)}
 
 OUTPUT FORMAT
 ─────────────

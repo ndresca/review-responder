@@ -63,7 +63,19 @@ function buildAnalysisMessages(t: Translation): string[] {
 }
 
 function buildLoadingMessages(t: Translation): string[] {
-  return [t.onbCalibLoading1, t.onbCalibLoading2, t.onbCalibLoading3, t.onbCalibLoading4]
+  // 8 entries total: 7 working messages cycle until generation succeeds,
+  // then index 7 ("Almost ready...") plays as a 1-second close-out beat.
+  // The cycling modulo below uses (length - 1) so the close-out is reserved.
+  return [
+    t.onbCalibLoading1,
+    t.onbCalibLoading2,
+    t.onbCalibLoading3,
+    t.onbCalibLoading4,
+    t.onbCalibLoading5,
+    t.onbCalibLoading6,
+    t.onbCalibLoading7,
+    t.onbCalibLoading8,
+  ]
 }
 
 function starsDisplay(count: number) {
@@ -813,7 +825,7 @@ function OnboardingContent() {
               <div className={styles.calibLoadingBar}>
                 <div className={styles.calibLoadingFill} style={{ width: `${analysisProgress}%` }} />
               </div>
-              <p className={styles.calibLoadingText}>{analysisMsg}</p>
+              <p key={analysisMsg} className={styles.calibLoadingText}>{analysisMsg}</p>
             </div>
           </div>
         </section>
@@ -1022,7 +1034,7 @@ function OnboardingContent() {
           {calibLoading && (
             <div className={styles.calibPageLoading} role="status" aria-live="polite">
               <span className={styles.calibPageSpinner} aria-hidden="true" />
-              <p className={styles.calibPageLoadingText}>{loadingMsg}</p>
+              <p key={loadingMsg} className={styles.calibPageLoadingText}>{loadingMsg}</p>
               <p className={styles.calibPageLoadingSub}>{t.onbStep3GeneratingSub}</p>
             </div>
           )}
