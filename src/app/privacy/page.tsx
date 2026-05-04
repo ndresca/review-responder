@@ -76,8 +76,8 @@ export default async function PrivacyPage() {
         <h2 className={styles.heading}>{t.privContactHeading}</h2>
         <p className={styles.body}>
           {t.privContactBefore}
-          <a href="mailto:contact@autoplier.com" className={styles.link}>
-            contact@autoplier.com
+          <a href="mailto:contact@landofiguanas.com" className={styles.link}>
+            contact@landofiguanas.com
           </a>
           {t.privContactAfter}
         </p>
