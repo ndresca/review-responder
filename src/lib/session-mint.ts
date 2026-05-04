@@ -63,15 +63,6 @@ export async function mintSupabaseSession(
     .setProtectedHeader({ alg: 'HS256' })
     .sign(secret)
 
-  // eslint-disable-next-line no-console
-  console.log('[BUG_B_DIAGNOSTIC] mintSupabaseSession start', {
-    timestamp: new Date().toISOString(),
-  })
-
-  // Capture cookie names written via the setAll callback so we can log
-  // exactly what the SDK stamped onto the response.
-  const cookiesSet: string[] = []
-
   // Write sb-* cookies onto the outgoing response. setSession internally
   // calls our setAll with the sb-<project-ref>-auth-token cookies.
   const sbClient = createServerClient(supabaseUrl, supabaseAnonKey, {
@@ -79,14 +70,13 @@ export async function mintSupabaseSession(
       getAll() { return cookieStore.getAll() },
       setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
         for (const c of cookiesToSet) {
-          cookiesSet.push(c.name)
           response.cookies.set(c.name, c.value, c.options)
         }
       },
     },
   })
 
-  const setSessionResult = await sbClient.auth.setSession({
+  const { error: sessionError } = await sbClient.auth.setSession({
     access_token: accessToken,
     // refresh_token here is a Supabase concept (used by the SDK to silently
     // refresh on expiry). Our refresh flow lives at /api/auth/refresh and
@@ -94,42 +84,13 @@ export async function mintSupabaseSession(
     // happy even though we never actually rely on it for refresh.
     refresh_token: accessToken,
   })
-  const { data: setSessionData, error: sessionError } = setSessionResult
-
-  // eslint-disable-next-line no-console
-  console.log('[BUG_B_DIAGNOSTIC] setSession result', {
-    timestamp: new Date().toISOString(),
-    hasAccessToken: !!accessToken,
-    accessTokenLength: accessToken?.length ?? 0,
-    // We pass the same minted JWT in as refresh_token (see comment above);
-    // logging both fields anyway since the user-facing hypothesis is that
-    // a "Refresh token is not valid" error fires inside the SDK during a
-    // later refreshSession() call.
-    hasRefreshToken: !!accessToken,
-    refreshTokenLength: accessToken?.length ?? 0,
-    setSessionError: sessionError ? sessionError.message : null,
-    returnedSessionUserId: setSessionData?.session?.user?.id ?? null,
-    returnedSessionExpiresAt: setSessionData?.session?.expires_at ?? null,
-  })
 
   if (sessionError) {
-    console.error('[BUG_B_DIAGNOSTIC] mintSupabaseSession done', {
-      timestamp: new Date().toISOString(),
-      success: false,
-      cookiesSet,
-      error: sessionError.message,
-    })
     // Throw so the OAuth callback's try/catch at route.ts:428-431 surfaces
     // reason=config to the user instead of silently proceeding with no
     // auth cookies (which would 401 every subsequent request).
     throw new Error(`setSession failed: ${sessionError.message}`)
   }
-  // eslint-disable-next-line no-console
-  console.log('[BUG_B_DIAGNOSTIC] mintSupabaseSession done', {
-    timestamp: new Date().toISOString(),
-    success: true,
-    cookiesSet,
-  })
 }
 
 /**

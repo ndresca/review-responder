@@ -1,4 +1,3 @@
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { getAuthedSupabase } from '@/lib/session'
 
@@ -14,38 +13,9 @@ import { getAuthedSupabase } from '@/lib/session'
 // brandVoice and notifications fall back to nulls if the rows don't exist
 // yet (which can happen if the user skipped golive); the page seeds defaults
 // from those nulls.
-export async function GET(request: Request): Promise<NextResponse> {
+export async function GET(): Promise<NextResponse> {
   const authed = await getAuthedSupabase()
-  if (!authed) {
-    // Bug B diagnostic — capture the cookie + header state at the moment
-    // of 401 so we can distinguish (a) cookies never sent → SameSite/Secure
-    // mismatch or browser context issue, from (b) cookies sent but
-    // rejected → JWT signature/expiry/user-gone issue. The two
-    // hypotheses look identical at the API layer without this log.
-    // Removed once root-caused.
-    const cookieStore = await cookies()
-    const all = cookieStore.getAll()
-    const sbAuthCookies = all.filter(c => /^sb-.+-auth-token(\.\d+)?$/.test(c.name))
-    const hasSbAuthCookie = sbAuthCookies.length > 0
-    const hasRefreshCookie = !!cookieStore.get('autoplier_refresh')?.value
-    const reasonFor401 = hasSbAuthCookie
-      ? 'sb-cookie-present-but-getUser-returned-null'
-      : hasRefreshCookie
-        ? 'no-sb-cookie-but-refresh-present'
-        : 'no-sb-cookie-no-refresh'
-    // eslint-disable-next-line no-console
-    console.log('[BUG_B_DIAGNOSTIC] settings/load 401', {
-      timestamp: new Date().toISOString(),
-      hasSbAuthCookie,
-      sbAuthCookieNames: sbAuthCookies.map(c => c.name),
-      hasRefreshCookie,
-      allCookieNames: all.map(c => c.name),
-      userAgent: request.headers.get('user-agent'),
-      referer: request.headers.get('referer'),
-      reasonFor401,
-    })
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  if (!authed) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { user, supabase } = authed
   // user.email is populated from auth.users when auth.getUser() validates
   // against the auth server — surfaces in the GBP "connected" pill.
