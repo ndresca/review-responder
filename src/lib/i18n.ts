@@ -170,7 +170,6 @@ export type Translation = {
   onbStep3FeedbackPlaceholder: string
   onbStep3SubmitFeedback: string
   onbStep3AiResponse: string
-  onbStep3GoLive: string
   onbStep3TypePositive: string
   onbStep3TypeMixed: string
   onbStep3TypeNegative: string
@@ -525,7 +524,6 @@ export const EN: Translation = {
   onbStep3FeedbackPlaceholder: 'Optional — skip if you prefer',
   onbStep3SubmitFeedback: 'Submit feedback',
   onbStep3AiResponse: 'AI response',
-  onbStep3GoLive: 'Go Live',
   onbStep3TypePositive: 'Positive',
   onbStep3TypeMixed: 'Mixed',
   onbStep3TypeNegative: 'Negative',
@@ -883,7 +881,6 @@ export const ES: Translation = {
   onbStep3FeedbackPlaceholder: 'Opcional — déjalo en blanco si prefieres',
   onbStep3SubmitFeedback: 'Enviar comentarios',
   onbStep3AiResponse: 'Respuesta de la IA',
-  onbStep3GoLive: 'Salir al aire',
   onbStep3TypePositive: 'Positiva',
   onbStep3TypeMixed: 'Mixta',
   onbStep3TypeNegative: 'Negativa',
