@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { getAuthedSupabase } from '@/lib/session'
 
@@ -15,7 +16,16 @@ import { getAuthedSupabase } from '@/lib/session'
 // from those nulls.
 export async function GET(): Promise<NextResponse> {
   const authed = await getAuthedSupabase()
-  if (!authed) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!authed) {
+    const cookieStore = await cookies()
+    const all = cookieStore.getAll()
+    console.error('[settings/load] unauthenticated', {
+      hasSbAuthCookie: all.some(c => c.name.startsWith('sb-') && c.name.endsWith('-auth-token')),
+      hasRefreshCookie: !!cookieStore.get('autoplier_refresh')?.value,
+      cookieNames: all.map(c => c.name),
+    })
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   const { user, supabase } = authed
   // user.email is populated from auth.users when auth.getUser() validates
   // against the auth server — surfaces in the GBP "connected" pill.
