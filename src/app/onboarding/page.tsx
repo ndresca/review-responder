@@ -1181,7 +1181,7 @@ function OnboardingContent() {
               {accepted.size >= 3 && (
                 <div className={styles.goLiveWrap}>
                   <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => goToStep(4)}>
-                    {t.onbStep3GoLive}
+                    {t.continue}
                   </button>
                 </div>
               )}
