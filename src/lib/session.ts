@@ -94,7 +94,24 @@ export async function getAuthedSupabase(): Promise<{ user: User; supabase: Supab
     },
   })
 
-  const { data: { user } } = await supabase.auth.getUser()
+  let user
+  try {
+    const result = await supabase.auth.getUser()
+    user = result.data.user
+  } catch (err) {
+    // Bug B diagnostic — the user reports "Refresh token is not valid"
+    // surfacing from inside the Supabase SDK on session refresh attempts.
+    // Capturing the actual exception message + name to confirm whether
+    // this throw originates from getUser() itself, and whether SSR's
+    // implicit refreshSession is the culprit. Removed once root-caused.
+    // eslint-disable-next-line no-console
+    console.log('[BUG_B_DIAGNOSTIC] getAuthedSupabase exception', {
+      timestamp: new Date().toISOString(),
+      errorMessage: err instanceof Error ? err.message : String(err),
+      errorName: err instanceof Error ? err.name : 'unknown',
+    })
+    throw err
+  }
   if (!user) return null
   return { user, supabase }
 }

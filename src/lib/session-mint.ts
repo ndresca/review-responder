@@ -86,7 +86,7 @@ export async function mintSupabaseSession(
     },
   })
 
-  const { error: sessionError } = await sbClient.auth.setSession({
+  const setSessionResult = await sbClient.auth.setSession({
     access_token: accessToken,
     // refresh_token here is a Supabase concept (used by the SDK to silently
     // refresh on expiry). Our refresh flow lives at /api/auth/refresh and
@@ -94,6 +94,24 @@ export async function mintSupabaseSession(
     // happy even though we never actually rely on it for refresh.
     refresh_token: accessToken,
   })
+  const { data: setSessionData, error: sessionError } = setSessionResult
+
+  // eslint-disable-next-line no-console
+  console.log('[BUG_B_DIAGNOSTIC] setSession result', {
+    timestamp: new Date().toISOString(),
+    hasAccessToken: !!accessToken,
+    accessTokenLength: accessToken?.length ?? 0,
+    // We pass the same minted JWT in as refresh_token (see comment above);
+    // logging both fields anyway since the user-facing hypothesis is that
+    // a "Refresh token is not valid" error fires inside the SDK during a
+    // later refreshSession() call.
+    hasRefreshToken: !!accessToken,
+    refreshTokenLength: accessToken?.length ?? 0,
+    setSessionError: sessionError ? sessionError.message : null,
+    returnedSessionUserId: setSessionData?.session?.user?.id ?? null,
+    returnedSessionExpiresAt: setSessionData?.session?.expires_at ?? null,
+  })
+
   if (sessionError) {
     console.error('[BUG_B_DIAGNOSTIC] mintSupabaseSession done', {
       timestamp: new Date().toISOString(),
