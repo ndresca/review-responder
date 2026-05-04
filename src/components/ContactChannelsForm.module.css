@@ -1,0 +1,149 @@
+/* Visual row grouping mirrors the .calibCard pattern from
+   onboarding.module.css — surface bg, 1px border, lg radius, 20px
+   padding. Each channel is a self-contained scannable block instead
+   of one giant stack of inputs. */
+
+.list {
+  display: grid;
+  gap: 12px;
+}
+
+.row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+  position: relative;
+}
+
+.rowField {
+  display: grid;
+  gap: 4px;
+}
+
+.rowLabel {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+/* Inputs themselves reuse the host page's .textInput / .textarea
+   styling via composition — see the .input / .textarea classes below
+   that match the visual properties of the brand-voice form's inputs.
+   Local copies (not imported) so the component is self-contained. */
+
+.input {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-med);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.input:focus {
+  border-color: var(--accent);
+}
+
+.textarea {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-med);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+
+.textarea:focus {
+  border-color: var(--accent);
+}
+
+/* Discrete "×" delete button in the top-right of each row. */
+.deleteButton {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color 0.15s, background 0.15s;
+}
+
+@media (hover: hover) {
+  .deleteButton:hover {
+    color: var(--error);
+    background: rgba(200, 68, 15, 0.08);
+  }
+}
+
+.deleteButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* "Add channel" button — secondary action style. Disabled when
+   channels.length >= maxChannels. */
+.addButton {
+  margin-top: 12px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  background: transparent;
+  border: 1px dashed var(--border-med);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+@media (hover: hover) {
+  .addButton:hover {
+    border-color: var(--accent);
+    background: rgba(181, 118, 10, 0.04);
+  }
+}
+
+.addButton:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.addButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.empty {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  padding: 16px 0 4px;
+}

@@ -887,6 +887,16 @@
   line-height: 1.5;
 }
 
+/* Inline help text under a section label, e.g. "Contact channels". Sits
+   between .fieldLabel and the field itself. */
+.fieldHelp {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: -4px 0 8px;
+}
+
 /* ── STEP 5: Payment ────────────────────────────────────────────────── */
 .paymentHeadline {
   font-family: var(--font-display);

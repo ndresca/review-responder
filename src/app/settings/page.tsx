@@ -2,8 +2,11 @@
 
 import { useState, useCallback, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { ContactChannelsForm } from '@/components/ContactChannelsForm'
 import { Footer } from '@/components/Footer'
+import { filterCompleteChannels } from '@/lib/contact-channels'
 import { useTranslation } from '@/lib/i18n-client'
+import type { ContactChannel } from '@/lib/types'
 import styles from './settings.module.css'
 
 const HOURS = [
@@ -38,6 +41,7 @@ const EMPTY_DEFAULTS = {
   weekly: false,
   lowAlert: false,
   hourIdx: 2,
+  contactChannels: [] as ContactChannel[],
 }
 
 type LoadResponse = {
@@ -50,6 +54,7 @@ type LoadResponse = {
     language: string
     autoDetectLanguage: boolean
     ownerDescription: string | null
+    contactChannels?: ContactChannel[]
   } | null
   notifications: {
     frequency: 'daily' | 'weekly'
@@ -110,6 +115,13 @@ function SettingsContent() {
   const [weekly, setWeekly] = useState(EMPTY_DEFAULTS.weekly)
   const [lowAlert, setLowAlert] = useState(EMPTY_DEFAULTS.lowAlert)
   const [hourIdx, setHourIdx] = useState(EMPTY_DEFAULTS.hourIdx)
+  // Contact channels state. Stored as array of ContactChannel; the form
+  // component manages add/edit/delete via setContactChannels. Dirty
+  // tracking uses JSON.stringify since reference identity changes on
+  // every keystroke inside the form.
+  const [contactChannels, setContactChannels] = useState<ContactChannel[]>(
+    EMPTY_DEFAULTS.contactChannels,
+  )
 
   // Initial-load state. While loading, the form sections are replaced with a
   // centered spinner so we don't briefly show the empty defaults as if they
@@ -197,6 +209,9 @@ function SettingsContent() {
           next.avoid = data.brandVoice.avoid ?? ''
           next.language = data.brandVoice.language ?? 'en'
           next.autoDetectLanguage = data.brandVoice.autoDetectLanguage ?? false
+          if (Array.isArray(data.brandVoice.contactChannels)) {
+            next.contactChannels = data.brandVoice.contactChannels
+          }
         }
 
         if (data.notifications) {
@@ -217,10 +232,15 @@ function SettingsContent() {
         setDaily(next.daily)
         setWeekly(next.weekly)
         setHourIdx(next.hourIdx)
+        setContactChannels(next.contactChannels)
 
         // Reset the dirty baseline to the loaded values so the save button
-        // stays hidden until the user actually edits.
-        savedRef.current = { ...next }
+        // stays hidden until the user actually edits. Deep-copy the channels
+        // array so mutations to component state don't drift the baseline.
+        savedRef.current = {
+          ...next,
+          contactChannels: JSON.parse(JSON.stringify(next.contactChannels)) as ContactChannel[],
+        }
         setSavedVersion(v => v + 1)
       } catch (err) {
         if (cancelled) return
@@ -247,9 +267,13 @@ function SettingsContent() {
       daily !== s.daily ||
       weekly !== s.weekly ||
       lowAlert !== s.lowAlert ||
-      hourIdx !== s.hourIdx
+      hourIdx !== s.hourIdx ||
+      // Channels are arrays of objects — JSON.stringify is the cheapest
+      // structural compare available without a deps lib. Order matters
+      // (the form preserves insertion order), so this also catches reorder.
+      JSON.stringify(contactChannels) !== JSON.stringify(s.contactChannels)
     )
-  }, [restaurantName, personality, avoid, language, autoDetectLanguage, daily, weekly, lowAlert, hourIdx])
+  }, [restaurantName, personality, avoid, language, autoDetectLanguage, daily, weekly, lowAlert, hourIdx, contactChannels])
 
   function handleDaily(on: boolean) {
     setDaily(on)
@@ -274,6 +298,12 @@ function SettingsContent() {
       daily ? 'daily' : weekly ? 'weekly' : undefined
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 
+    // Drop incomplete rows before persisting. Same shared helper as
+    // onboarding handleStep2Continue (src/lib/contact-channels.ts) —
+    // server validator rejects any row missing label / value /
+    // when_to_use; pre-filtering avoids a 400 on a partly typed channel.
+    const cleanChannels = filterCompleteChannels(contactChannels)
+
     setSaving(true)
     try {
       const res = await fetch('/api/settings/save', {
@@ -289,6 +319,7 @@ function SettingsContent() {
           digestDay: frequency === 'weekly' ? 1 : null, // Monday default; surface a day picker in a follow-up
           digestTime: hourIdxToTime(hourIdx),
           timezone,
+          contactChannels: cleanChannels,
         }),
       })
 
@@ -300,10 +331,20 @@ function SettingsContent() {
       }
 
       // Snapshot current values as the new saved baseline so isDirty() flips false.
+      // The post-save snapshot uses cleanChannels (the body we actually sent)
+      // rather than the unfiltered `contactChannels` so an in-progress empty
+      // row left behind by the user doesn't immediately mark the form dirty
+      // again right after save. Deep-clone so subsequent mutations to state
+      // don't drift the baseline.
       savedRef.current = {
         restaurantName, personality, avoid, language, autoDetectLanguage,
         daily, weekly, lowAlert, hourIdx,
+        contactChannels: JSON.parse(JSON.stringify(cleanChannels)) as ContactChannel[],
       }
+      // Reflect the filtered list in component state so the form drops any
+      // half-typed rows on save. Avoids an "unsaved" indicator one tick after
+      // success because state and snapshot disagree.
+      setContactChannels(cleanChannels)
       setSavedVersion(v => v + 1)
 
       // Briefly flash "Saved" so the success state is perceptible, then push
@@ -593,6 +634,16 @@ function SettingsContent() {
             <option value="zh">{t.languageMandarin}</option>
             <option value="ar">{t.languageArabic}</option>
           </select>
+        </div>
+
+        {/* Contact channels — owner-allowlisted, max 5. */}
+        <div className={styles.field}>
+          <label className={styles.fieldLabel}>{t.contactChannelsHeader}</label>
+          <p className={styles.fieldHelp}>{t.contactChannelsHeaderHelp}</p>
+          <ContactChannelsForm
+            channels={contactChannels}
+            onChange={setContactChannels}
+          />
         </div>
 
         {/* Per-review auto-detect — same toggle as onboarding step 2. */}

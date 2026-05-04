@@ -2,10 +2,13 @@
 
 import { useState, useRef, useCallback, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { ContactChannelsForm } from '@/components/ContactChannelsForm'
 import { LogoFull } from '@/components/LogoFull'
 import { Footer } from '@/components/Footer'
+import { filterCompleteChannels } from '@/lib/contact-channels'
 import { useTranslation } from '@/lib/i18n-client'
 import type { Translation } from '@/lib/i18n'
+import type { ContactChannel } from '@/lib/types'
 import styles from './onboarding.module.css'
 
 const TOTAL_STEPS = 5
@@ -151,6 +154,9 @@ function OnboardingContent() {
           if (typeof data.brandVoice.autoDetectLanguage === 'boolean') {
             setAutoLang(data.brandVoice.autoDetectLanguage)
           }
+          if (Array.isArray(data.brandVoice.contactChannels)) {
+            setContactChannels(data.brandVoice.contactChannels as ContactChannel[])
+          }
         }
       })
       .catch(() => {
@@ -193,6 +199,7 @@ function OnboardingContent() {
   const [avoid, setAvoid] = useState('')
   const [language, setLanguage] = useState('en')
   const [autoLang, setAutoLang] = useState(true)
+  const [contactChannels, setContactChannels] = useState<ContactChannel[]>([])
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
 
   // Calibration
@@ -494,6 +501,10 @@ function OnboardingContent() {
     // synchronously, but the user-visible navigation should not race the
     // network request itself.
     if (locationId) {
+      // Drop incomplete rows before persisting. Shared helper used by
+      // settings/page.tsx too — keeps behavior symmetrical between the
+      // two save surfaces. See src/lib/contact-channels.ts.
+      const cleanChannels = filterCompleteChannels(contactChannels)
       try {
         const saveRes = await fetch('/api/settings/save', {
           method: 'POST',
@@ -506,6 +517,7 @@ function OnboardingContent() {
             avoid,
             language,
             autoDetectLanguage: autoLang,
+            contactChannels: cleanChannels,
           }),
         })
         if (!saveRes.ok) {
@@ -959,6 +971,18 @@ function OnboardingContent() {
                 className={styles.textInput}
                 value={avoid}
                 onChange={(e) => setAvoid(e.target.value)}
+              />
+            </div>
+
+            {/* Contact channels (optional, max 5) */}
+            <div className={styles.field}>
+              <label className={styles.fieldLabel}>
+                {t.contactChannelsHeader}
+              </label>
+              <p className={styles.fieldHelp}>{t.contactChannelsHeaderHelp}</p>
+              <ContactChannelsForm
+                channels={contactChannels}
+                onChange={setContactChannels}
               />
             </div>
 
