@@ -830,7 +830,11 @@
 
 .calibFeedbackTextarea {
   font-family: var(--font-body);
-  font-size: 14px;
+  /* 16px default to prevent iOS Safari auto-zoom on focus. The desktop
+     override below brings it down to 14px on mouse/trackpad devices
+     where iOS zoom isn't a concern. Mirrors the same pattern in
+     settings.module.css and BrandVoiceFields.module.css. */
+  font-size: 16px;
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--border-med);
@@ -842,6 +846,10 @@
   outline: none;
   transition: border-color 0.15s;
   line-height: 1.5;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .calibFeedbackTextarea { font-size: 14px; }
 }
 
 .calibFeedbackTextarea:focus {
@@ -978,3 +986,151 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* ── Edit brand voice panel (calibration step 3) ──────────────────────────
+   Persistent collapsible card above the 6 calibration cards. Owner expands
+   the panel, edits brand voice fields, clicks Save → server regenerates
+   non-accepted cards using the new brand voice. Two-level collapsible:
+   outer for the whole panel, inner for the contact channels sub-section
+   so channels aren't always visible (they're conceptually a different
+   class of editing than free-text brand voice tweaks). */
+
+.bvPanel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.bvPanelToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+}
+
+@media (hover: hover) {
+  .bvPanelToggle:hover { background: rgba(181, 118, 10, 0.04); }
+}
+
+.bvPanelToggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.bvPanelChevron {
+  flex-shrink: 0;
+  transition: transform 0.2s;
+  color: var(--muted);
+}
+
+.bvPanelChevronOpen { transform: rotate(90deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .bvPanelChevron { transition: none; }
+}
+
+.bvPanelBody {
+  padding: 0 18px 18px;
+  display: grid;
+  gap: 16px;
+}
+
+.bvPanelDescription {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0 0 4px;
+}
+
+.bvPanelInnerSection {
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding-top: 12px;
+}
+
+.bvPanelInnerToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  padding: 4px 0;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  width: 100%;
+  text-align: left;
+}
+
+.bvPanelInnerToggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.bvPanelInnerBody {
+  padding-top: 12px;
+}
+
+/* Save row: action button on the left, transparency message inline
+   beneath. Confirmation message (all-accepted edge case) replaces the
+   transparency message when active. */
+
+.bvPanelSaveRow {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.bvPanelSaveButton {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--bg);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: 10px 18px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  justify-self: start;
+}
+
+@media (hover: hover) {
+  .bvPanelSaveButton:hover { background: var(--accent-hover, #9a6308); border-color: var(--accent-hover, #9a6308); }
+}
+
+.bvPanelSaveButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.bvPanelSaveButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.bvPanelTransparency, .bvPanelConfirm {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.bvPanelConfirm { color: var(--success, var(--accent)); }

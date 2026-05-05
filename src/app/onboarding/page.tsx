@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { BrandVoiceFields } from '@/components/BrandVoiceFields'
 import { ContactChannelsForm } from '@/components/ContactChannelsForm'
 import { LogoFull } from '@/components/LogoFull'
 import { Footer } from '@/components/Footer'
@@ -244,6 +245,19 @@ function OnboardingContent() {
   const [calibReady, setCalibReady] = useState(false)
   const [calibError, setCalibError] = useState<string | null>(null)
   const [loadingMsg, setLoadingMsg] = useState('')
+
+  // Edit-brand-voice panel (calibration step 3 — collapsible above the cards).
+  // Shares the same brand voice state vars as step 2 (brandVoice / personality
+  // / avoid / language / autoLang / contactChannels) so the owner editing the
+  // panel sees identical fields to what they filled out during onboarding.
+  // Panel-local state below tracks UI: outer collapsed/expanded, inner
+  // contact-channels collapsed/expanded, save-in-flight, and the 3-second
+  // all-accepted confirmation message.
+  const [bvPanelOpen, setBvPanelOpen] = useState(false)
+  const [bvPanelChannelsOpen, setBvPanelChannelsOpen] = useState(false)
+  const [bvPanelSaving, setBvPanelSaving] = useState(false)
+  const [bvPanelAllAcceptedConfirm, setBvPanelAllAcceptedConfirm] = useState(false)
+  const [bvPanelRateLimited, setBvPanelRateLimited] = useState(false)
 
   // Digest
   const [digest, setDigest] = useState<'daily' | 'weekly'>('daily')
@@ -528,6 +542,153 @@ function OnboardingContent() {
 
     goToStep(3)
     startCalibLoading()
+  }
+
+  // Edit-brand-voice panel Save handler.
+  //
+  // Pipeline:
+  //   1. Persist brand voice + contact channels via /api/settings/save.
+  //   2. Compute eligible cards: not-yet-accepted AND not currently being
+  //      edited by the owner (skip in-flight edits silently — don't blow
+  //      away the owner's work).
+  //   3. If 0 eligible (all 6 accepted): show a 3-second inline confirm,
+  //      no regen call.
+  //   4. Else: for each eligible card sequentially with ~250ms delay
+  //      (matching calibrate POST cadence) — flip cardLoading on, hit
+  //      /regenerate, swap cardState + clear rejections on success.
+  //      Per-card failures are silent and non-blocking.
+  //   5. Collapse the panel after the first card returns.
+  //
+  // Sequential rather than parallel: matches the existing calibrate POST
+  // pacing, hedges OpenAI rate limits, smooths the UX (cards refresh
+  // visibly one at a time instead of all at once).
+  async function handleBvPanelSave() {
+    if (bvPanelSaving) return
+    if (!locationId) return
+
+    setBvPanelSaving(true)
+    setBvPanelRateLimited(false)
+    setBvPanelAllAcceptedConfirm(false)
+
+    // Drop incomplete contact-channel rows before persisting (same shared
+    // helper as the step 2 + settings paths).
+    const cleanChannels = filterCompleteChannels(contactChannels)
+
+    // Step 1 — persist brand voice. Failure is fatal-ish: skip the regen
+    // since the new brand voice didn't actually save. Surface error via
+    // the existing console pattern; keep panel open for retry.
+    try {
+      const saveRes = await fetch('/api/settings/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          locationId,
+          ownerDescription: brandVoice,
+          personality,
+          avoid,
+          language,
+          autoDetectLanguage: autoLang,
+          contactChannels: cleanChannels,
+        }),
+      })
+      if (!saveRes.ok) {
+        console.error('[panel save] settings/save failed', saveRes.status)
+        setBvPanelSaving(false)
+        return
+      }
+    } catch (err) {
+      console.error('[panel save] settings/save threw:', err)
+      setBvPanelSaving(false)
+      return
+    }
+
+    // Step 2 — compute eligible cards.
+    const eligible = cardOrder.filter(
+      (id) => !accepted.has(id) && editingCardId !== id,
+    )
+
+    if (eligible.length === 0) {
+      // Step 3 — all accepted edge case.
+      setBvPanelSaving(false)
+      setBvPanelOpen(false)
+      setBvPanelAllAcceptedConfirm(true)
+      // 3-second auto-hide. Cleared on next save attempt or any other
+      // user action that touches the panel.
+      setTimeout(() => setBvPanelAllAcceptedConfirm(false), 3000)
+      return
+    }
+
+    // Step 4 — collapse panel after first card returns. Track via flag.
+    let collapsedAlready = false
+
+    // Step 5 — per-card sequential regen.
+    for (let i = 0; i < eligible.length; i++) {
+      const cardId = eligible[i]
+      const slotState = cardState[cardId]
+      if (!slotState || !slotState.exampleId) continue
+
+      // Flag the card as loading. Reuses the existing per-card spinner
+      // state introduced for the reject + edit-submit paths.
+      setCardLoading((prev) => { const next = new Set(prev); next.add(cardId); return next })
+
+      try {
+        const res = await fetch('/api/onboarding/calibrate/regenerate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ exampleId: slotState.exampleId }),
+        })
+
+        if (res.status === 429) {
+          // Rate limit — surface to the owner and stop the loop. Cards
+          // already regenerated keep their fresh state; remaining cards
+          // stay as-is.
+          setBvPanelRateLimited(true)
+          setCardLoading((prev) => { const next = new Set(prev); next.delete(cardId); return next })
+          break
+        }
+
+        if (!res.ok) {
+          console.error(`[panel save] regenerate ${cardId} failed: HTTP ${res.status}`)
+          setCardLoading((prev) => { const next = new Set(prev); next.delete(cardId); return next })
+          continue
+        }
+
+        const json = (await res.json()) as { example: { id: string; review_sample: string; ai_response: string } }
+        const newEx = json.example
+
+        // Swap card state in. The new example has a different exampleId
+        // (it's a fresh row in calibration_examples) — store it so the
+        // next decision/regen uses the new id.
+        setCardState((prev) => ({
+          ...prev,
+          [cardId]: {
+            exampleId: newEx.id,
+            reviewSample: newEx.review_sample,
+            aiResponse: newEx.ai_response,
+          },
+        }))
+        // Clear per-card rejection counter — fresh start, the brand
+        // voice changed so the prior rejection chain doesn't apply.
+        setRejections((prev) => { const next = { ...prev }; delete next[cardId]; return next })
+        setCardLoading((prev) => { const next = new Set(prev); next.delete(cardId); return next })
+
+        // Collapse panel after the first successful card returns.
+        if (!collapsedAlready) {
+          collapsedAlready = true
+          setBvPanelOpen(false)
+        }
+      } catch (err) {
+        console.error(`[panel save] regenerate ${cardId} threw:`, err)
+        setCardLoading((prev) => { const next = new Set(prev); next.delete(cardId); return next })
+      }
+
+      // 250ms inter-call delay, matching the existing calibrate POST.
+      if (i < eligible.length - 1) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 250))
+      }
+    }
+
+    setBvPanelSaving(false)
   }
 
   async function handleAccept(localId: string) {
@@ -897,120 +1058,55 @@ function OnboardingContent() {
             )}
           </div>
 
-          <div className={styles.field} id="field-brandVoice">
-            <label className={styles.fieldLabel} htmlFor="brand-voice">
-              {t.onbStep2VoiceLabel} <span className={styles.fieldRequired}>{t.onbStep2FieldRequired}</span>
-            </label>
-            <textarea
-              id="brand-voice"
-              rows={5}
-              placeholder={t.onbStep2VoicePlaceholder}
-              autoComplete="off"
-              spellCheck
-              className={`${styles.textarea} ${validationErrors.brandVoice ? styles.inputError : ''}`}
-              value={brandVoice}
-              onChange={(e) => { setBrandVoice(e.target.value); setValidationErrors((prev) => { const next = { ...prev }; delete next.brandVoice; return next }) }}
+          {/* Brand voice fields (description, personality, avoid, language,
+              auto-detect toggle) — extracted to a shared component so the
+              calibration step 3 panel and the settings page render the same
+              controls. Onboarding mode shows Required + Optional badges
+              inline; the order matches what onboarding shipped before the
+              extraction. Validation errors on the description field are
+              forwarded so step-2's existing validation flow keeps working. */}
+          <div id="field-brandVoice">
+            <BrandVoiceFields
+              mode="onboarding"
+              ownerDescription={brandVoice}
+              onOwnerDescriptionChange={(v) => {
+                setBrandVoice(v)
+                setValidationErrors((prev) => { const next = { ...prev }; delete next.brandVoice; return next })
+              }}
+              personality={personality}
+              onPersonalityChange={setPersonality}
+              avoid={avoid}
+              onAvoidChange={setAvoid}
+              language={language}
+              onLanguageChange={setLanguage}
+              autoLang={autoLang}
+              onAutoLangChange={setAutoLang}
+              errors={validationErrors.brandVoice ? { ownerDescription: validationErrors.brandVoice } : undefined}
+              idPrefix="onb"
             />
-            {validationErrors.brandVoice && (
-              <p className={styles.fieldError}>{validationErrors.brandVoice}</p>
-            )}
           </div>
 
+          {/* Contact channels (optional, max 5). Lives outside BrandVoiceFields
+              because each surface (onboarding, settings, calibration panel)
+              frames channels differently — onboarding inlines them under the
+              brand voice form, settings does the same, the panel wraps them
+              in a nested collapsible. */}
           <div className={styles.field}>
-            <label className={styles.fieldLabel} htmlFor="language">
-              {t.onbStep2LanguageLabel} <span className={styles.fieldRequired}>{t.onbStep2FieldRequired}</span>
+            <label className={styles.fieldLabel}>
+              {t.contactChannelsHeader}
             </label>
-            <select
-              id="language"
-              className={styles.select}
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-            >
-              <option value="en">{t.languageEnglish}</option>
-              <option value="es">{t.languageSpanish}</option>
-              <option value="fr">{t.languageFrench}</option>
-              <option value="pt">{t.languagePortuguese}</option>
-              <option value="it">{t.languageItalian}</option>
-              <option value="de">{t.languageGerman}</option>
-              <option value="ja">{t.languageJapanese}</option>
-              <option value="zh">{t.languageMandarin}</option>
-              <option value="ar">{t.languageArabic}</option>
-            </select>
+            <p className={styles.fieldHelp}>{t.contactChannelsHeaderHelp}</p>
+            <ContactChannelsForm
+              channels={contactChannels}
+              onChange={setContactChannels}
+            />
           </div>
 
-          {/* Optional section */}
-          <p className={styles.optionalSectionLabel}>{t.onbStep2OptionalSection}</p>
-
-          <div className={styles.optionalFields}>
-            <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="personality">
-                {t.onbStep2PersonalityLabel} <span className={styles.fieldOptional}>{t.onbStep2FieldOptional}</span>
-              </label>
-              <input
-                type="text"
-                id="personality"
-                placeholder={t.onbStep2PersonalityPlaceholder}
-                autoComplete="off"
-                className={styles.textInput}
-                value={personality}
-                onChange={(e) => setPersonality(e.target.value)}
-              />
-            </div>
-
-            <div className={styles.field}>
-              <label className={styles.fieldLabel} htmlFor="avoid">
-                {t.onbStep2AvoidLabel} <span className={styles.fieldOptional}>{t.onbStep2FieldOptional}</span>
-              </label>
-              <input
-                type="text"
-                id="avoid"
-                placeholder={t.onbStep2AvoidPlaceholder}
-                autoComplete="off"
-                className={styles.textInput}
-                value={avoid}
-                onChange={(e) => setAvoid(e.target.value)}
-              />
-            </div>
-
-            {/* Contact channels (optional, max 5) */}
-            <div className={styles.field}>
-              <label className={styles.fieldLabel}>
-                {t.contactChannelsHeader}
-              </label>
-              <p className={styles.fieldHelp}>{t.contactChannelsHeaderHelp}</p>
-              <ContactChannelsForm
-                channels={contactChannels}
-                onChange={setContactChannels}
-              />
-            </div>
-
-            {/* Multi-language toggle */}
-            <div className={styles.fieldToggleRow}>
-              <div className={styles.fieldToggleInfo}>
-                <span className={styles.fieldLabel}>
-                  {t.onbStep2AutoLangLabel} <span className={styles.fieldOptional}>{t.onbStep2FieldOptional}</span>
-                </span>
-                <span className={styles.fieldToggleSub}>
-                  {t.onbStep2AutoLangSub}
-                </span>
-              </div>
-              <button
-                className={styles.toggle}
-                role="switch"
-                aria-checked={autoLang}
-                aria-label={t.onbStep2AutoLangAria}
-                onClick={() => setAutoLang(!autoLang)}
-              >
-                <span className={styles.toggleTrack}>
-                  <span className={styles.toggleThumb} />
-                </span>
-              </button>
-            </div>
-
-            <div className={styles.field}>
-              <label className={styles.fieldLabel}>
-                {t.onbStep2UploadLabel} <span className={styles.fieldOptional}>{t.onbStep2FieldOptional}</span>
-              </label>
+          {/* Brand voice doc upload (PDF / DOC / TXT) — onboarding-only. */}
+          <div className={styles.field}>
+            <label className={styles.fieldLabel}>
+              {t.onbStep2UploadLabel} <span className={styles.fieldOptional}>{t.onbStep2FieldOptional}</span>
+            </label>
               <div
                 className={styles.dropZone}
                 tabIndex={0}
@@ -1039,7 +1135,6 @@ function OnboardingContent() {
                 onChange={(e) => { if (e.target.files?.length) handleFile(e.target.files[0]) }}
               />
             </div>
-          </div>
 
           <button
             className={`${styles.btn} ${styles.btnPrimary}`}
@@ -1089,6 +1184,136 @@ function OnboardingContent() {
                   {accepted.size} {t.onbStep3CountSuffix}
                 </span>
               </div>
+
+              {/* Edit-brand-voice panel — collapsible above the 6 cards.
+                  Lets the owner update brand voice mid-calibration and
+                  regenerate non-accepted cards in place. Two-level
+                  collapsible: outer for the panel, inner for contact
+                  channels (which have their own per-channel save model
+                  from PR #76 and feel different in framing). */}
+              <section className={styles.bvPanel} role="region" aria-label={t.onbStep3PanelHeader}>
+                <button
+                  type="button"
+                  className={styles.bvPanelToggle}
+                  aria-expanded={bvPanelOpen}
+                  aria-label={bvPanelOpen ? t.onbStep3PanelCollapseAria : t.onbStep3PanelExpandAria}
+                  onClick={() => setBvPanelOpen((prev) => !prev)}
+                >
+                  <span>{t.onbStep3PanelHeader}</span>
+                  <svg
+                    className={`${styles.bvPanelChevron} ${bvPanelOpen ? styles.bvPanelChevronOpen : ''}`}
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </button>
+
+                {bvPanelOpen && (
+                  <div className={styles.bvPanelBody}>
+                    <p className={styles.bvPanelDescription}>{t.onbStep3PanelDescription}</p>
+
+                    <BrandVoiceFields
+                      mode="flat"
+                      ownerDescription={brandVoice}
+                      onOwnerDescriptionChange={setBrandVoice}
+                      personality={personality}
+                      onPersonalityChange={setPersonality}
+                      avoid={avoid}
+                      onAvoidChange={setAvoid}
+                      language={language}
+                      onLanguageChange={setLanguage}
+                      autoLang={autoLang}
+                      onAutoLangChange={setAutoLang}
+                      idPrefix="bvpanel"
+                    />
+
+                    {/* Inner collapsible: contact channels. Default
+                        collapsed so the panel feels less heavy on first
+                        expand; owner clicks again to dive into channels. */}
+                    <div className={styles.bvPanelInnerSection}>
+                      <button
+                        type="button"
+                        className={styles.bvPanelInnerToggle}
+                        aria-expanded={bvPanelChannelsOpen}
+                        onClick={() => setBvPanelChannelsOpen((prev) => !prev)}
+                      >
+                        <svg
+                          className={`${styles.bvPanelChevron} ${bvPanelChannelsOpen ? styles.bvPanelChevronOpen : ''}`}
+                          viewBox="0 0 24 24"
+                          width="12"
+                          height="12"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                        <span>{t.onbStep3PanelContactChannelsToggle}</span>
+                      </button>
+                      {bvPanelChannelsOpen && (
+                        <div className={styles.bvPanelInnerBody}>
+                          <ContactChannelsForm
+                            channels={contactChannels}
+                            onChange={setContactChannels}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className={styles.bvPanelSaveRow}>
+                      <button
+                        type="button"
+                        className={styles.bvPanelSaveButton}
+                        onClick={handleBvPanelSave}
+                        disabled={bvPanelSaving}
+                      >
+                        {bvPanelSaving ? t.setSaving : t.onbStep3PanelSaveButton}
+                      </button>
+                      {/* Transparency message: how many cards will
+                          regenerate. Hides when 0 — the all-accepted
+                          case shows its own confirmation message
+                          outside the panel after Save click instead. */}
+                      {(() => {
+                        const eligible = cardOrder.filter(
+                          (id) => !accepted.has(id) && editingCardId !== id,
+                        ).length
+                        if (eligible === 0) return null
+                        return (
+                          <p className={styles.bvPanelTransparency}>
+                            {eligible === 1
+                              ? t.onbStep3RegenTransparencyOne
+                              : t.onbStep3RegenTransparencyMany(eligible)}
+                          </p>
+                        )
+                      })()}
+                      {bvPanelRateLimited && (
+                        <p className={styles.bvPanelTransparency} role="alert">
+                          {t.onbStep3RegenRateLimited}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              {/* All-6-accepted edge case confirmation — appears outside
+                  the (now-collapsed) panel for ~3 seconds after Save. */}
+              {bvPanelAllAcceptedConfirm && (
+                <p className={styles.bvPanelConfirm} role="status">
+                  {t.onbStep3AllAcceptedConfirm}
+                </p>
+              )}
 
               {cardOrder.map((cardId) => {
                 const live = cardState[cardId]

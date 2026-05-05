@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { BrandVoiceFields } from '@/components/BrandVoiceFields'
 import { ContactChannelsForm } from '@/components/ContactChannelsForm'
 import { Footer } from '@/components/Footer'
 import { filterCompleteChannels } from '@/lib/contact-channels'
@@ -33,6 +34,7 @@ function timeToHourIdx(hour: number): number {
 // load returns null/empty rows (new accounts that haven't completed onboarding).
 const EMPTY_DEFAULTS = {
   restaurantName: '',
+  ownerDescription: '',
   personality: '',
   avoid: '',
   language: 'en',
@@ -107,6 +109,7 @@ function SettingsContent() {
   // Form state — all editable inline, all dirty-tracked. Seeded with
   // empty defaults; the load effect populates from real DB rows on mount.
   const [restaurantName, setRestaurantName] = useState(EMPTY_DEFAULTS.restaurantName)
+  const [ownerDescription, setOwnerDescription] = useState(EMPTY_DEFAULTS.ownerDescription)
   const [personality, setPersonality] = useState(EMPTY_DEFAULTS.personality)
   const [avoid, setAvoid] = useState(EMPTY_DEFAULTS.avoid)
   const [language, setLanguage] = useState(EMPTY_DEFAULTS.language)
@@ -205,6 +208,7 @@ function SettingsContent() {
         if (data.restaurantName) next.restaurantName = data.restaurantName
 
         if (data.brandVoice) {
+          next.ownerDescription = data.brandVoice.ownerDescription ?? ''
           next.personality = data.brandVoice.personality ?? ''
           next.avoid = data.brandVoice.avoid ?? ''
           next.language = data.brandVoice.language ?? 'en'
@@ -225,6 +229,7 @@ function SettingsContent() {
 
         // Push into state.
         setRestaurantName(next.restaurantName)
+        setOwnerDescription(next.ownerDescription)
         setPersonality(next.personality)
         setAvoid(next.avoid)
         setLanguage(next.language)
@@ -260,6 +265,7 @@ function SettingsContent() {
     const s = savedRef.current
     return (
       restaurantName !== s.restaurantName ||
+      ownerDescription !== s.ownerDescription ||
       personality !== s.personality ||
       avoid !== s.avoid ||
       language !== s.language ||
@@ -273,7 +279,7 @@ function SettingsContent() {
       // (the form preserves insertion order), so this also catches reorder.
       JSON.stringify(contactChannels) !== JSON.stringify(s.contactChannels)
     )
-  }, [restaurantName, personality, avoid, language, autoDetectLanguage, daily, weekly, lowAlert, hourIdx, contactChannels])
+  }, [restaurantName, ownerDescription, personality, avoid, language, autoDetectLanguage, daily, weekly, lowAlert, hourIdx, contactChannels])
 
   function handleDaily(on: boolean) {
     setDaily(on)
@@ -311,6 +317,7 @@ function SettingsContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           locationId,
+          ownerDescription,
           personality,
           avoid,
           language,
@@ -337,7 +344,7 @@ function SettingsContent() {
       // again right after save. Deep-clone so subsequent mutations to state
       // don't drift the baseline.
       savedRef.current = {
-        restaurantName, personality, avoid, language, autoDetectLanguage,
+        restaurantName, ownerDescription, personality, avoid, language, autoDetectLanguage,
         daily, weekly, lowAlert, hourIdx,
         contactChannels: JSON.parse(JSON.stringify(cleanChannels)) as ContactChannel[],
       }
@@ -588,53 +595,31 @@ function SettingsContent() {
         </div>
       </section>
 
-      {/* Section 2: Brand voice — fully inline-editable, no modal */}
+      {/* Section 2: Brand voice — fully inline-editable, no modal.
+          The 5 brand-voice fields (description, personality, avoid,
+          language, auto-detect) are rendered by the shared
+          BrandVoiceFields component so onboarding step 2, settings,
+          and the calibration step 3 panel stay aligned. Contact
+          channels live below the form because each surface frames
+          channels differently (settings inlines them; the panel uses
+          a nested collapsible). */}
       <section className={styles.settingsSection} aria-label={t.setSectionVoice} data-i18n-anchor="settings-voice">
         <h2 className={styles.sectionLabel}>{t.setSectionVoice}</h2>
 
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="personality">{t.setPersonalityLabel}</label>
-          <input
-            type="text"
-            id="personality"
-            className={styles.textInput}
-            value={personality}
-            onChange={(e) => setPersonality(e.target.value)}
-            autoComplete="off"
-          />
-        </div>
-
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="avoid">{t.setAvoidLabel}</label>
-          <input
-            type="text"
-            id="avoid"
-            className={styles.textInput}
-            value={avoid}
-            onChange={(e) => setAvoid(e.target.value)}
-            autoComplete="off"
-          />
-        </div>
-
-        <div className={styles.field}>
-          <label className={styles.fieldLabel} htmlFor="language">{t.setLanguageLabel}</label>
-          <select
-            id="language"
-            className={styles.selectInput}
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-          >
-            <option value="en">{t.languageEnglish}</option>
-            <option value="es">{t.languageSpanish}</option>
-            <option value="fr">{t.languageFrench}</option>
-            <option value="pt">{t.languagePortuguese}</option>
-            <option value="it">{t.languageItalian}</option>
-            <option value="de">{t.languageGerman}</option>
-            <option value="ja">{t.languageJapanese}</option>
-            <option value="zh">{t.languageMandarin}</option>
-            <option value="ar">{t.languageArabic}</option>
-          </select>
-        </div>
+        <BrandVoiceFields
+          mode="flat"
+          ownerDescription={ownerDescription}
+          onOwnerDescriptionChange={setOwnerDescription}
+          personality={personality}
+          onPersonalityChange={setPersonality}
+          avoid={avoid}
+          onAvoidChange={setAvoid}
+          language={language}
+          onLanguageChange={setLanguage}
+          autoLang={autoDetectLanguage}
+          onAutoLangChange={setAutoDetectLanguage}
+          idPrefix="settings"
+        />
 
         {/* Contact channels — owner-allowlisted, max 5. */}
         <div className={styles.field}>
@@ -644,15 +629,6 @@ function SettingsContent() {
             channels={contactChannels}
             onChange={setContactChannels}
           />
-        </div>
-
-        {/* Per-review auto-detect — same toggle as onboarding step 2. */}
-        <div className={styles.toggleRow}>
-          <div className={styles.toggleInfo}>
-            <span className={styles.toggleLabel}>{t.onbStep2AutoLangLabel}</span>
-            <span className={styles.toggleSub}>{t.onbStep2AutoLangSub}</span>
-          </div>
-          <Toggle id="toggle-autolang" checked={autoDetectLanguage} onChange={setAutoDetectLanguage} label={t.onbStep2AutoLangAria} />
         </div>
       </section>
 

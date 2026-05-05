@@ -1,0 +1,172 @@
+/* BrandVoiceFields — shared brand-voice editor used by onboarding step 2,
+   settings page, and the calibration step 3 panel. Visual properties
+   mirror the existing onboarding/settings input styling so embedding
+   the component in any of those surfaces produces no visible diff. */
+
+.fields {
+  display: grid;
+  gap: 16px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.label {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.required, .optional {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.required {
+  color: var(--accent);
+}
+
+.optional {
+  color: var(--muted);
+}
+
+/* Inputs use the same 16px-default + 14px-on-desktop pattern as
+   onboarding.module.css and settings.module.css to keep iOS Safari from
+   auto-zooming on focus. */
+
+.input, .textarea, .select {
+  font-family: var(--font-body);
+  font-size: 16px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-med);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  width: 100%;
+  line-height: 1.5;
+  outline: none;
+  transition: border-color 0.15s;
+  -webkit-appearance: none;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 120px;
+  font-family: inherit;
+}
+
+.input:focus, .textarea:focus, .select:focus {
+  border-color: var(--accent);
+}
+
+.input::placeholder, .textarea::placeholder {
+  color: var(--muted);
+}
+
+.select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238C7B6B' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .input, .textarea, .select { font-size: 14px; }
+}
+
+.inputError {
+  border-color: var(--error);
+}
+
+.fieldError {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--error);
+  margin: 0;
+}
+
+/* Auto-detect language toggle row. Two columns: info on the left, the
+   actual switch on the right. Mirrors the onboarding step 2 .fieldToggleRow
+   layout. */
+
+.toggleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 4px;
+}
+
+.toggleInfo {
+  flex: 1;
+  display: grid;
+  gap: 2px;
+}
+
+.toggleSub {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-top: 2px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 14px;
+}
+
+.toggleTrack {
+  display: block;
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--border-med);
+  position: relative;
+  transition: background 0.2s;
+}
+
+.toggle[aria-checked="true"] .toggleTrack {
+  background: var(--accent);
+}
+
+.toggleThumb {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.toggle[aria-checked="true"] .toggleThumb {
+  transform: translateX(20px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggleThumb { transition: none; }
+  .toggleTrack { transition: none; }
+}
