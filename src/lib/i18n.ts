@@ -281,16 +281,21 @@ export type Translation = {
   // ── Contact channels (PR D — onboarding step 2 + settings) ────────────
   contactChannelsHeader: string
   contactChannelsHeaderHelp: string
-  channelLabelHeader: string
+  channelContactHeader: string
   channelValueHeader: string
   channelWhenToUseHeader: string
-  channelLabelPlaceholder: string
+  channelContactPlaceholder: string
   channelValuePlaceholder: string
   channelWhenToUsePlaceholder: string
   channelAddButton: string
   channelAddButtonAtMax: string
   channelDeleteAria: string
-  channelsEmpty: string
+  // ── Contact channels UX refinement (per-channel save state) ───────────
+  channelSaveButton: string
+  channelCancelButton: string
+  channelEditAria: string
+  channelFieldRequired: string
+  channelUnsavedWarning: string
 
   // ── History ────────────────────────────────────────────────────────────
   histBackToDashboard: string
@@ -647,17 +652,21 @@ export const EN: Translation = {
   setUnsavedDiscard: 'Discard',
 
   contactChannelsHeader: 'Contact channels (optional)',
-  contactChannelsHeaderHelp: "Channels the AI may reference in replies. The AI uses each one only when its 'When to use' guidance applies.",
-  channelLabelHeader: 'Label',
+  contactChannelsHeaderHelp: "Add an email, phone, or handle the AI can mention in replies (e.g. 'reach out at support@business.com' for unhappy customers). Without channels, replies acknowledge the review but never share contact details.",
+  channelContactHeader: 'Contact',
   channelValueHeader: 'Value',
   channelWhenToUseHeader: 'When to use',
-  channelLabelPlaceholder: 'WhatsApp Business',
-  channelValuePlaceholder: 'The actual email, phone, handle, or URL',
+  channelContactPlaceholder: 'e.g. email, instagram, phone number',
+  channelValuePlaceholder: 'e.g. support@business.com, +1 555 123 4567, @yourbusiness',
   channelWhenToUsePlaceholder: 'For negative reviews where the customer needs follow-up',
   channelAddButton: '+ Add channel',
   channelAddButtonAtMax: 'Maximum 5 channels',
   channelDeleteAria: 'Delete channel',
-  channelsEmpty: 'No contact channels configured yet.',
+  channelSaveButton: 'Save channel',
+  channelCancelButton: 'Cancel',
+  channelEditAria: 'Edit channel',
+  channelFieldRequired: 'Required',
+  channelUnsavedWarning: 'Finish setting up your channel',
 
   // History
   histBackToDashboard: '← Dashboard',
@@ -1017,17 +1026,21 @@ export const ES: Translation = {
   setUnsavedDiscard: 'Descartar',
 
   contactChannelsHeader: 'Canales de contacto (opcional)',
-  contactChannelsHeaderHelp: 'Canales que la IA puede mencionar en respuestas. Solo usa cada uno cuando aplica la guía "Cuándo usarlo".',
-  channelLabelHeader: 'Etiqueta',
+  contactChannelsHeaderHelp: 'Añade un correo, teléfono o usuario que la IA pueda mencionar en sus respuestas (ej. "escríbenos a soporte@business.com" para clientes molestos). Sin canales configurados, las respuestas reconocen la reseña pero nunca comparten datos de contacto.',
+  channelContactHeader: 'Contacto',
   channelValueHeader: 'Valor',
   channelWhenToUseHeader: 'Cuándo usarlo',
-  channelLabelPlaceholder: 'WhatsApp Business',
-  channelValuePlaceholder: 'El correo, teléfono, usuario o URL real',
+  channelContactPlaceholder: 'ej. correo, instagram, número de teléfono',
+  channelValuePlaceholder: 'ej. soporte@negocio.com, +1 555 123 4567, @tunegocio',
   channelWhenToUsePlaceholder: 'Para reseñas negativas que necesiten seguimiento',
   channelAddButton: '+ Agregar canal',
   channelAddButtonAtMax: 'Máximo 5 canales',
   channelDeleteAria: 'Eliminar canal',
-  channelsEmpty: 'Aún no hay canales de contacto configurados.',
+  channelSaveButton: 'Guardar canal',
+  channelCancelButton: 'Cancelar',
+  channelEditAria: 'Editar canal',
+  channelFieldRequired: 'Requerido',
+  channelUnsavedWarning: 'Termina de configurar tu canal',
 
   // History
   histBackToDashboard: '← Panel',
