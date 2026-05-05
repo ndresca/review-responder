@@ -257,24 +257,20 @@ export function ContactChannelsForm({
 
   const atMax = slots.length >= maxChannels
 
-  // Single warning element with copy-swap based on most-specific trigger:
-  //   1. Per-slot incomplete-warning flag (set by failed Save) → R5 copy
-  //   2. Any draft exists → R6 copy (ambient reminder)
-  //   3. None → no warning rendered
-  // Mutually exclusive: R5 wins when active.
-  const hasIncompleteWarning = slots.some((s) => s._showIncompleteWarning)
-  const hasDraft = slots.some((s) => s._state === 'draft')
-  const warningCopy = hasIncompleteWarning
-    ? t.channelUnsavedWarning
-    : hasDraft
-      ? t.channelDraftPresentWarning
-      : null
+  // Warning fires only when the user has clicked Save on a draft with
+  // empty fields. Drafts that haven't yet been Save-attempted produce
+  // no warning — the user has done nothing wrong yet, and showing a
+  // warning on Add click is disorienting. Server-side
+  // filterCompleteChannels still drops half-typed rows on the parent
+  // form's Continue/Save click, so an unsaved draft never poisons
+  // the persisted state.
+  const showWarning = slots.some((s) => s._showIncompleteWarning)
 
   return (
     <div>
-      {warningCopy !== null && (
+      {showWarning && (
         <div className={styles.unsavedWarning} role="alert" aria-live="polite">
-          {warningCopy}
+          {t.channelUnsavedWarning}
         </div>
       )}
 

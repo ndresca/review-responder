@@ -35,11 +35,10 @@ function fillDraft(label: string, value: string, whenToUse: string) {
   fireEvent.change(screen.getByPlaceholderText(RE_WHEN_PLACEHOLDER), { target: { value: whenToUse } })
 }
 
-// Copy fragments for warning copy assertions. We test against stable
-// substrings rather than the full string so future copy tweaks don't
-// silently break tests that should be testing behavior.
+// Stable substring for the (only) warning copy. Asserting on a
+// substring (not the full string) keeps future editorial tweaks from
+// silently breaking behavior tests.
 const RE_INCOMPLETE_WARNING = /finish setting up your channel/i
-const RE_DRAFT_PRESENT_WARNING = /unsaved changes/i
 
 describe('<ContactChannelsForm />', () => {
   // 1
@@ -204,32 +203,31 @@ describe('<ContactChannelsForm />', () => {
     expect(addBtn.disabled).toBe(true)
   })
 
-  // 14 — REWRITE: warning timing per R5/R6 (Option B copy-swap)
-  it('warning does NOT appear on Add alone; appears with R5 copy after Save with empty fields', () => {
+  // 14 — Warning fires ONLY on Save with empty fields, never on
+  // Add alone or while typing. Cleared on field change / Cancel /
+  // successful Save.
+  it('warning is hidden on Add; visible after Save-with-empty; clears on type, Cancel, or Save success', () => {
     render(<ContactChannelsForm channels={[]} onChange={() => {}} />)
     expect(screen.queryByRole('alert')).toBeNull()
 
+    // Add → no warning. Drafts exist but the user hasn't attempted
+    // anything wrong yet.
     fireEvent.click(screen.getByRole('button', { name: /\+ Add channel/i }))
-    // After Add, a draft exists but no Save attempt yet → R6 fallback
-    // shows ("You have unsaved changes…"). The R5 copy is NOT visible.
-    const alertAfterAdd = screen.getByRole('alert')
-    expect(alertAfterAdd.textContent).toMatch(RE_DRAFT_PRESENT_WARNING)
-    expect(alertAfterAdd.textContent).not.toMatch(RE_INCOMPLETE_WARNING)
+    expect(screen.queryByRole('alert')).toBeNull()
 
-    // Click Save with all 3 fields empty → copy swaps to R5.
+    // Save with all 3 fields empty → warning appears.
     fireEvent.click(screen.getByRole('button', { name: /save channel/i }))
     const alertAfterSave = screen.getByRole('alert')
     expect(alertAfterSave.textContent).toMatch(RE_INCOMPLETE_WARNING)
-    expect(alertAfterSave.textContent).not.toMatch(RE_DRAFT_PRESENT_WARNING)
 
-    // Type into label — clears the per-slot incomplete flag, copy
-    // reverts to R6 (draft still exists).
+    // Typing into any field clears the per-slot incomplete flag →
+    // warning hides (no fallback, since fallback is gone).
     fireEvent.change(screen.getByPlaceholderText(RE_CONTACT_PLACEHOLDER), { target: { value: 'X' } })
-    const alertAfterType = screen.getByRole('alert')
-    expect(alertAfterType.textContent).toMatch(RE_DRAFT_PRESENT_WARNING)
-    expect(alertAfterType.textContent).not.toMatch(RE_INCOMPLETE_WARNING)
+    expect(screen.queryByRole('alert')).toBeNull()
 
-    // Cancel — slot removed, no drafts left, warning disappears.
+    // Trigger the warning again, then verify Cancel also clears it.
+    fireEvent.click(screen.getByRole('button', { name: /save channel/i }))
+    expect(screen.getByRole('alert')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
     expect(screen.queryByRole('alert')).toBeNull()
   })
@@ -261,42 +259,21 @@ describe('<ContactChannelsForm />', () => {
     expect(within(labelField).queryByText(/required/i)).toBeNull()
   })
 
-  // 17 — NEW: R6 fallback warning appears on Add (before Save attempt)
-  it('R6 fallback warning is visible after Add before any Save attempt', () => {
-    render(<ContactChannelsForm channels={[]} onChange={() => {}} />)
-    fireEvent.click(screen.getByRole('button', { name: /\+ Add channel/i }))
-    const alert = screen.getByRole('alert')
-    expect(alert.textContent).toMatch(RE_DRAFT_PRESENT_WARNING)
-    expect(alert.getAttribute('aria-live')).toBe('polite')
-  })
-
-  // 18 — NEW: R5/R6 mutual exclusion
-  it('R5 copy hides R6 copy when both conditions could apply (mutual exclusion)', () => {
-    render(<ContactChannelsForm channels={[]} onChange={() => {}} />)
-    // Two drafts so R6's "draft exists" condition is doubly true.
-    fireEvent.click(screen.getByRole('button', { name: /\+ Add channel/i }))
-    fireEvent.click(screen.getByRole('button', { name: /\+ Add channel/i }))
-    // Trigger the per-slot flag on one of them by clicking Save with
-    // empty fields. (getAllByRole picks the first save button.)
-    const saveButtons = screen.getAllByRole('button', { name: /save channel/i })
-    fireEvent.click(saveButtons[0])
-    // R5 copy wins.
-    const alert = screen.getByRole('alert')
-    expect(alert.textContent).toMatch(RE_INCOMPLETE_WARNING)
-    expect(alert.textContent).not.toMatch(RE_DRAFT_PRESENT_WARNING)
-  })
-
-  // 19 — NEW: fresh-Add Cancel removes slot, warning vanishes if no other drafts
+  // 17 — Cancel on the only fresh draft removes it (and any active
+  // warning vanishes alongside, though Cancel only happens after a
+  // failed Save in this test).
   it('clicking Cancel on the only fresh draft removes it and the warning vanishes', () => {
     render(<ContactChannelsForm channels={[]} onChange={() => {}} />)
     fireEvent.click(screen.getByRole('button', { name: /\+ Add channel/i }))
+    // Trigger the warning by attempting to save the empty draft.
+    fireEvent.click(screen.getByRole('button', { name: /save channel/i }))
     expect(screen.getByRole('alert')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.queryByPlaceholderText(RE_CONTACT_PLACEHOLDER)).toBeNull()
   })
 
-  // 20 — NEW: edit-Cancel restores from snapshot (distinct from fresh-Add Cancel)
+  // 18 — edit-Cancel restores from snapshot (distinct from fresh-Add Cancel)
   it('Cancel during edit-in-progress restores from snapshot, slot stays in SAVED', () => {
     const onChange = vi.fn()
     render(<ContactChannelsForm channels={[CH({ id: 'a', label: 'Original' })]} onChange={onChange} />)

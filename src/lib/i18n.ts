@@ -296,7 +296,6 @@ export type Translation = {
   channelEditAria: string
   channelFieldRequired: string
   channelUnsavedWarning: string
-  channelDraftPresentWarning: string
 
   // ── History ────────────────────────────────────────────────────────────
   histBackToDashboard: string
@@ -668,7 +667,6 @@ export const EN: Translation = {
   channelEditAria: 'Edit channel',
   channelFieldRequired: 'Required',
   channelUnsavedWarning: 'Finish setting up your channel',
-  channelDraftPresentWarning: 'You have unsaved changes. Click Save on each channel to keep them, or Cancel to discard.',
 
   // History
   histBackToDashboard: '← Dashboard',
@@ -1043,7 +1041,6 @@ export const ES: Translation = {
   channelEditAria: 'Editar canal',
   channelFieldRequired: 'Requerido',
   channelUnsavedWarning: 'Termina de configurar tu canal',
-  channelDraftPresentWarning: 'Tienes cambios sin guardar. Haz clic en Guardar en cada canal para conservarlos, o Cancelar para descartar.',
 
   // History
   histBackToDashboard: '← Panel',
