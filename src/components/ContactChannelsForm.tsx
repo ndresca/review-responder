@@ -19,14 +19,17 @@ type Props = {
 // Internal state shape — never exposed to the host. Each slot tracks
 // whether the row is being edited (DRAFT) or committed (SAVED). When a
 // previously-saved slot is being edited, _savedSnapshot holds the
-// pre-edit values so Cancel can restore them.
+// pre-edit values so Cancel can restore them. _showIncompleteWarning
+// is set when the user clicks Save on a draft with empty fields, and
+// cleared on field change / Cancel / successful Save.
 //
-// On every onChange emit we strip _state + _savedSnapshot and pass a
-// pure ContactChannel[] back to the host. The ContactChannel type in
-// src/lib/types.ts stays clean.
+// On every onChange emit we strip _state, _savedSnapshot, and
+// _showIncompleteWarning. ContactChannel in src/lib/types.ts stays
+// pure.
 type Slot = ContactChannel & {
   _state: 'draft' | 'saved'
   _savedSnapshot?: ContactChannel
+  _showIncompleteWarning?: boolean
 }
 
 // Per-channel field error map. Keyed by slot id; each entry tracks
@@ -40,8 +43,9 @@ type FieldErrors = {
 
 // Renders the owner's contact channels with a per-channel save state
 // machine. Cards live in one of two states:
-//   DRAFT  — expanded, 3 inputs editable, Save (+ Cancel if previously
-//            saved) button row, no error/warning until Save click.
+//   DRAFT  — expanded, 3 inputs editable, Save + Cancel button row
+//            (Cancel removes the slot for fresh adds, restores from
+//             snapshot for edit-in-progress).
 //   SAVED  — collapsed summary (label + value), Edit pencil + Delete.
 //
 // Drafts never escape the component. Host only sees pure ContactChannel
@@ -49,9 +53,19 @@ type FieldErrors = {
 //   • Save (transitions DRAFT → SAVED, possibly committing edits)
 //   • Delete of a SAVED slot (Delete of a DRAFT slot is internal-only)
 //
-// PR D shipped the data flow (#74). PR #75 added the shared filter
-// helper + audit fix. This PR (UX refinement) layers the state machine
-// on top — no schema, prompt, or server changes.
+// Single warning element above the list with copy swap based on the
+// most-specific trigger:
+//   • If any slot has _showIncompleteWarning → "Finish setting up your
+//     channel" (the user just attempted Save and we want them to fix
+//     the row in front of them).
+//   • else if any slot is in DRAFT state → "You have unsaved changes…"
+//     (ambient reminder while typing).
+//   • else hide.
+//
+// The data field on ContactChannel is `label`. The user-facing string
+// for that field is "Contact" (per UX refinement, the schema field
+// name didn't follow because it's load-bearing on PR A schema, PR B
+// validator, and PR C prompt builder).
 export function ContactChannelsForm({
   channels,
   onChange,
@@ -78,7 +92,7 @@ export function ContactChannelsForm({
     setSlots((prev) => {
       const stripped = prev
         .filter((s) => s._state === 'saved')
-        .map(({ _state: _s, _savedSnapshot: _ss, ...pure }) => pure)
+        .map(({ _state: _s, _savedSnapshot: _ss, _showIncompleteWarning: _w, ...pure }) => pure)
       if (JSON.stringify(stripped) === JSON.stringify(channels)) return prev
       return fromProps
     })
@@ -89,7 +103,7 @@ export function ContactChannelsForm({
     // Strip internal fields. Host receives pure ContactChannel[].
     const pure = next
       .filter((s) => s._state === 'saved')
-      .map(({ _state: _s, _savedSnapshot: _ss, ...rest }) => rest)
+      .map(({ _state: _s, _savedSnapshot: _ss, _showIncompleteWarning: _w, ...rest }) => rest)
     onChange(pure)
   }
 
@@ -101,15 +115,23 @@ export function ContactChannelsForm({
       value: '',
       when_to_use: '',
       _state: 'draft',
-      // No _savedSnapshot — fresh add has nothing to revert to. Cancel
-      // is hidden for fresh adds; Delete is the cancel-fresh-add path.
+      // No _savedSnapshot — fresh add has nothing to revert to.
+      // Cancel on a fresh add removes the slot entirely; Cancel on an
+      // edit-in-progress restores from snapshot. Same button label,
+      // different behavior driven by snapshot presence.
     }
     setSlots([...slots, blank])
   }
 
   function handleFieldChange(id: string, patch: Partial<ContactChannel>) {
-    setSlots(slots.map((s) => (s.id === id ? { ...s, ...patch } : s)))
-    // Clear error optimistically for the field(s) being edited.
+    setSlots(slots.map((s) =>
+      s.id === id
+        // Typing clears the per-slot incomplete-warning flag — the
+        // user is responding to the prompt to fix it. Per-field errors
+        // also clear optimistically below.
+        ? { ...s, ...patch, _showIncompleteWarning: false }
+        : s,
+    ))
     setErrors((prev) => {
       const slotErrors = prev[id]
       if (!slotErrors) return prev
@@ -137,6 +159,11 @@ export function ContactChannelsForm({
     const errs = validateSlot(slot)
     if (errs.label || errs.value || errs.when_to_use) {
       setErrors((prev) => ({ ...prev, [id]: errs }))
+      // Flip the per-slot warning flag — drives the "Finish setting up
+      // your channel" copy in the single warning element above the list.
+      setSlots(slots.map((s) =>
+        s.id === id ? { ...s, _showIncompleteWarning: true } : s,
+      ))
       return
     }
     // Snapshot current values as the new committed baseline so a future
@@ -146,6 +173,7 @@ export function ContactChannelsForm({
         ? {
             ...s,
             _state: 'saved' as const,
+            _showIncompleteWarning: false,
             _savedSnapshot: {
               id: s.id,
               label: s.label,
@@ -169,27 +197,38 @@ export function ContactChannelsForm({
 
   function handleCancel(id: string) {
     const slot = slots.find((s) => s.id === id)
-    if (!slot || !slot._savedSnapshot) return
-    // Restore from snapshot, return to SAVED. No emit — the host's
-    // committed array is unchanged.
-    const snap = slot._savedSnapshot
-    setSlots(
-      slots.map((s) =>
-        s.id === id
-          ? {
-              ...s,
-              label: snap.label,
-              value: snap.value,
-              when_to_use: snap.when_to_use,
-              _state: 'saved' as const,
-            }
-          : s,
-      ),
-    )
-    setErrors((prev) => {
-      const { [id]: _, ...rest } = prev
-      return rest
-    })
+    if (!slot) return
+    if (slot._savedSnapshot) {
+      // Edit-in-progress — restore from snapshot, return to SAVED. No
+      // emit (host's committed array is unchanged).
+      const snap = slot._savedSnapshot
+      setSlots(
+        slots.map((s) =>
+          s.id === id
+            ? {
+                ...s,
+                label: snap.label,
+                value: snap.value,
+                when_to_use: snap.when_to_use,
+                _state: 'saved' as const,
+                _showIncompleteWarning: false,
+              }
+            : s,
+        ),
+      )
+      setErrors((prev) => {
+        const { [id]: _, ...rest } = prev
+        return rest
+      })
+    } else {
+      // Fresh add — remove the slot entirely. Same effect as
+      // handleDelete on a draft: no onChange (slot was never committed).
+      setSlots(slots.filter((s) => s.id !== id))
+      setErrors((prev) => {
+        const { [id]: _, ...rest } = prev
+        return rest
+      })
+    }
   }
 
   function handleDelete(id: string) {
@@ -217,13 +256,25 @@ export function ContactChannelsForm({
   }
 
   const atMax = slots.length >= maxChannels
+
+  // Single warning element with copy-swap based on most-specific trigger:
+  //   1. Per-slot incomplete-warning flag (set by failed Save) → R5 copy
+  //   2. Any draft exists → R6 copy (ambient reminder)
+  //   3. None → no warning rendered
+  // Mutually exclusive: R5 wins when active.
+  const hasIncompleteWarning = slots.some((s) => s._showIncompleteWarning)
   const hasDraft = slots.some((s) => s._state === 'draft')
+  const warningCopy = hasIncompleteWarning
+    ? t.channelUnsavedWarning
+    : hasDraft
+      ? t.channelDraftPresentWarning
+      : null
 
   return (
     <div>
-      {hasDraft && (
+      {warningCopy !== null && (
         <div className={styles.unsavedWarning} role="alert" aria-live="polite">
-          {t.channelUnsavedWarning}
+          {warningCopy}
         </div>
       )}
 
@@ -295,20 +346,19 @@ export function ContactChannelsForm({
     const labelErrId = `channel-${slot.id}-label-error`
     const valueErrId = `channel-${slot.id}-value-error`
     const whenErrId = `channel-${slot.id}-when-error`
-    const canCancel = !!slot._savedSnapshot
 
     return (
       <div key={slot.id} className={styles.row}>
         <div className={styles.rowField}>
           <label className={styles.rowLabel} htmlFor={`channel-label-${slot.id}`}>
-            {t.channelLabelHeader}
+            {t.channelContactHeader}
           </label>
           <input
             id={`channel-label-${slot.id}`}
             type="text"
             className={`${styles.input} ${slotErrors.label ? styles.inputError : ''}`}
             value={slot.label}
-            placeholder={t.channelLabelPlaceholder}
+            placeholder={t.channelContactPlaceholder}
             maxLength={LABEL_MAX}
             autoComplete="off"
             aria-invalid={!!slotErrors.label || undefined}
@@ -377,24 +427,19 @@ export function ContactChannelsForm({
           >
             {t.channelSaveButton}
           </button>
-          {canCancel ? (
-            <button
-              type="button"
-              className={styles.cancelButton}
-              onClick={() => handleCancel(slot.id)}
-            >
-              {t.channelCancelButton}
-            </button>
-          ) : (
-            <button
-              type="button"
-              className={styles.deleteTextButton}
-              aria-label={t.channelDeleteAria}
-              onClick={() => handleDelete(slot.id)}
-            >
-              {t.channelDeleteAria}
-            </button>
-          )}
+          {/* Single Cancel button in DRAFT state. Behavior depends on
+              whether the slot has a snapshot:
+                • snapshot present (edit-in-progress) → restore from
+                  snapshot, return to SAVED state.
+                • no snapshot (fresh add) → remove the slot entirely.
+              The button copy is "Cancel" in both contexts (R4). */}
+          <button
+            type="button"
+            className={styles.cancelButton}
+            onClick={() => handleCancel(slot.id)}
+          >
+            {t.channelCancelButton}
+          </button>
         </div>
       </div>
     )

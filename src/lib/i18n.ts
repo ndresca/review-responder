@@ -281,10 +281,10 @@ export type Translation = {
   // ── Contact channels (PR D — onboarding step 2 + settings) ────────────
   contactChannelsHeader: string
   contactChannelsHeaderHelp: string
-  channelLabelHeader: string
+  channelContactHeader: string
   channelValueHeader: string
   channelWhenToUseHeader: string
-  channelLabelPlaceholder: string
+  channelContactPlaceholder: string
   channelValuePlaceholder: string
   channelWhenToUsePlaceholder: string
   channelAddButton: string
@@ -296,6 +296,7 @@ export type Translation = {
   channelEditAria: string
   channelFieldRequired: string
   channelUnsavedWarning: string
+  channelDraftPresentWarning: string
 
   // ── History ────────────────────────────────────────────────────────────
   histBackToDashboard: string
@@ -652,12 +653,12 @@ export const EN: Translation = {
   setUnsavedDiscard: 'Discard',
 
   contactChannelsHeader: 'Contact channels (optional)',
-  contactChannelsHeaderHelp: "Add an email, phone, or handle the AI can mention in replies (e.g. 'reach out at support@you.com' for unhappy customers). Without channels, replies acknowledge the review but never share contact details.",
-  channelLabelHeader: 'Label',
+  contactChannelsHeaderHelp: "Add an email, phone, or handle the AI can mention in replies (e.g. 'reach out at support@business.com' for unhappy customers). Without channels, replies acknowledge the review but never share contact details.",
+  channelContactHeader: 'Contact',
   channelValueHeader: 'Value',
   channelWhenToUseHeader: 'When to use',
-  channelLabelPlaceholder: 'WhatsApp Business',
-  channelValuePlaceholder: 'The actual email, phone, handle, or URL',
+  channelContactPlaceholder: 'e.g. email, instagram, phone number',
+  channelValuePlaceholder: 'e.g. support@business.com, +1 555 123 4567, @yourbusiness',
   channelWhenToUsePlaceholder: 'For negative reviews where the customer needs follow-up',
   channelAddButton: '+ Add channel',
   channelAddButtonAtMax: 'Maximum 5 channels',
@@ -666,7 +667,8 @@ export const EN: Translation = {
   channelCancelButton: 'Cancel',
   channelEditAria: 'Edit channel',
   channelFieldRequired: 'Required',
-  channelUnsavedWarning: 'You have unsaved changes. Click Save on each channel to keep them, or Cancel to discard.',
+  channelUnsavedWarning: 'Finish setting up your channel',
+  channelDraftPresentWarning: 'You have unsaved changes. Click Save on each channel to keep them, or Cancel to discard.',
 
   // History
   histBackToDashboard: '← Dashboard',
@@ -1026,12 +1028,12 @@ export const ES: Translation = {
   setUnsavedDiscard: 'Descartar',
 
   contactChannelsHeader: 'Canales de contacto (opcional)',
-  contactChannelsHeaderHelp: 'Añade un correo, teléfono o usuario que la IA pueda mencionar en sus respuestas (ej. "escríbenos a soporte@tu.com" para clientes molestos). Sin canales configurados, las respuestas reconocen la reseña pero nunca comparten datos de contacto.',
-  channelLabelHeader: 'Etiqueta',
+  contactChannelsHeaderHelp: 'Añade un correo, teléfono o usuario que la IA pueda mencionar en sus respuestas (ej. "escríbenos a soporte@business.com" para clientes molestos). Sin canales configurados, las respuestas reconocen la reseña pero nunca comparten datos de contacto.',
+  channelContactHeader: 'Contacto',
   channelValueHeader: 'Valor',
   channelWhenToUseHeader: 'Cuándo usarlo',
-  channelLabelPlaceholder: 'WhatsApp Business',
-  channelValuePlaceholder: 'El correo, teléfono, usuario o URL real',
+  channelContactPlaceholder: 'ej. correo, instagram, número de teléfono',
+  channelValuePlaceholder: 'ej. soporte@negocio.com, +1 555 123 4567, @tunegocio',
   channelWhenToUsePlaceholder: 'Para reseñas negativas que necesiten seguimiento',
   channelAddButton: '+ Agregar canal',
   channelAddButtonAtMax: 'Máximo 5 canales',
@@ -1040,7 +1042,8 @@ export const ES: Translation = {
   channelCancelButton: 'Cancelar',
   channelEditAria: 'Editar canal',
   channelFieldRequired: 'Requerido',
-  channelUnsavedWarning: 'Tienes cambios sin guardar. Haz clic en Guardar en cada canal para conservarlos, o Cancelar para descartar.',
+  channelUnsavedWarning: 'Termina de configurar tu canal',
+  channelDraftPresentWarning: 'Tienes cambios sin guardar. Haz clic en Guardar en cada canal para conservarlos, o Cancelar para descartar.',
 
   // History
   histBackToDashboard: '← Panel',
