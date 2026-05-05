@@ -173,6 +173,19 @@ export type Translation = {
   onbStep3TypePositive: string
   onbStep3TypeMixed: string
   onbStep3TypeNegative: string
+  // Edit-brand-voice panel (calibration step 3 — collapsible above the cards)
+  onbStep3PanelHeader: string
+  onbStep3PanelDescription: string
+  onbStep3PanelSaveButton: string
+  onbStep3PanelExpandAria: string
+  onbStep3PanelCollapseAria: string
+  onbStep3PanelContactChannelsToggle: string
+  // Transparency message — interpolates {n} regenerations and uses
+  // singular/plural forms. Keep both forms in the type for clarity.
+  onbStep3RegenTransparencyOne: string
+  onbStep3RegenTransparencyMany: (n: number) => string
+  onbStep3AllAcceptedConfirm: string
+  onbStep3RegenRateLimited: string
 
   onbStep4Headline: string
   onbStep4Sub: string
@@ -546,6 +559,16 @@ export const EN: Translation = {
   onbStep3TypePositive: 'Positive',
   onbStep3TypeMixed: 'Mixed',
   onbStep3TypeNegative: 'Negative',
+  onbStep3PanelHeader: 'Edit brand voice',
+  onbStep3PanelDescription: "If the responses below aren't matching your voice — or if you forgot something during setup — update your brand voice here. We'll regenerate the responses to reflect the changes.",
+  onbStep3PanelSaveButton: 'Save changes',
+  onbStep3PanelExpandAria: 'Expand edit brand voice',
+  onbStep3PanelCollapseAria: 'Collapse edit brand voice',
+  onbStep3PanelContactChannelsToggle: 'Contact channels',
+  onbStep3RegenTransparencyOne: 'This will regenerate 1 example. About 30 seconds.',
+  onbStep3RegenTransparencyMany: (n: number) => `This will regenerate ${n} examples. About 30 seconds.`,
+  onbStep3AllAcceptedConfirm: 'Brand voice updated. (No examples regenerated since all examples are accepted.)',
+  onbStep3RegenRateLimited: 'Too many regenerations. Please wait a few minutes before trying again.',
 
   onbStep4Headline: 'How often do you want a summary?',
   onbStep4Sub: "We'll email you a digest of all responses sent. Pick whatever fits your schedule.",
@@ -920,6 +943,16 @@ export const ES: Translation = {
   onbStep3TypePositive: 'Positiva',
   onbStep3TypeMixed: 'Mixta',
   onbStep3TypeNegative: 'Negativa',
+  onbStep3PanelHeader: 'Editar voz de marca',
+  onbStep3PanelDescription: 'Si las respuestas de abajo no reflejan tu voz — o si olvidaste algo durante la configuración — actualiza tu voz de marca aquí. Regeneraremos las respuestas para reflejar los cambios.',
+  onbStep3PanelSaveButton: 'Guardar cambios',
+  onbStep3PanelExpandAria: 'Expandir editar voz de marca',
+  onbStep3PanelCollapseAria: 'Colapsar editar voz de marca',
+  onbStep3PanelContactChannelsToggle: 'Canales de contacto',
+  onbStep3RegenTransparencyOne: 'Esto regenerará 1 ejemplo. Unos 30 segundos.',
+  onbStep3RegenTransparencyMany: (n: number) => `Esto regenerará ${n} ejemplos. Unos 30 segundos.`,
+  onbStep3AllAcceptedConfirm: 'Voz de marca actualizada. (No se regeneraron ejemplos porque todos están aceptados.)',
+  onbStep3RegenRateLimited: 'Demasiadas regeneraciones. Espera unos minutos antes de intentarlo de nuevo.',
 
   onbStep4Headline: '¿Con qué frecuencia quieres recibir un resumen?',
   onbStep4Sub: 'Te enviaremos por correo electrónico un resumen de todas las respuestas recibidas. Elige la frecuencia que mejor se adapte a tu agenda.',
